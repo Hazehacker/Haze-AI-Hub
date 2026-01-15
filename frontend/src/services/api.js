@@ -4,7 +4,7 @@ export const chatAPI = {
   // 发送聊天消息
   async sendMessage(data, chatId) {
     try {
-      const url = new URL(`${BASE_URL}/ai/chat`)
+      const url = new URL(`${BASE_URL}/ai/chat-with-thinking-text`)
       if (chatId) {
         url.searchParams.append('chatId', chatId)
       }
