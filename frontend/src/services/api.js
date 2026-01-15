@@ -1,16 +1,32 @@
+import request from '@/utils/request'
+import { getToken } from '@/utils/auth'
+
 const BASE_URL = 'http://localhost:8080/api/v1'
 
 export const chatAPI = {
   // 发送聊天消息
   async sendMessage(data, chatId) {
     try {
-      const url = new URL(`${BASE_URL}/ai/chat-with-thinking-text`)
+      let url = `${BASE_URL}/ai/chat-with-thinking-text`
       if (chatId) {
-        url.searchParams.append('chatId', chatId)
+        url += `?chatId=${chatId}`
+      }
+      
+      const token = getToken()
+      const headers = {
+        'authentication': token || ''
+      }
+      
+      // 根据数据类型设置不同的请求体
+      if (data instanceof FormData) {
+        // FormData 会自动设置 Content-Type
+      } else {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded'
       }
       
       const response = await fetch(url, {
         method: 'POST',
+        headers: headers,
         body: data instanceof FormData ? data : 
           new URLSearchParams({ prompt: data })
       })
@@ -29,7 +45,12 @@ export const chatAPI = {
   // 获取聊天历史列表
   async getChatHistory(type = 'chat') {  // 添加类型参数
     try {
-      const response = await fetch(`${BASE_URL}/ai/history/${type}`)
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/ai/history/${type}`, {
+        headers: {
+          'authentication': token || ''
+        }
+      })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -50,7 +71,12 @@ export const chatAPI = {
   // 获取特定对话的消息历史
   async getChatMessages(chatId, type = 'chat') {  // 添加类型参数
     try {
-      const response = await fetch(`${BASE_URL}/ai/history/${type}/${chatId}`)
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/ai/history/${type}/${chatId}`, {
+        headers: {
+          'authentication': token || ''
+        }
+      })
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -69,8 +95,12 @@ export const chatAPI = {
   // 发送游戏消息
   async sendGameMessage(prompt, chatId) {
     try {
+      const token = getToken()
       const response = await fetch(`${BASE_URL}/ai/game?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`, {
         method: 'GET',
+        headers: {
+          'authentication': token || ''
+        }
       })
 
       if (!response.ok) {
@@ -87,8 +117,12 @@ export const chatAPI = {
   // 发送客服消息
   async sendServiceMessage(prompt, chatId) {
     try {
+      const token = getToken()
       const response = await fetch(`${BASE_URL}/ai/service?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`, {
         method: 'GET',
+        headers: {
+          'authentication': token || ''
+        }
       })
 
       if (!response.ok) {
@@ -105,8 +139,12 @@ export const chatAPI = {
   // 发送 PDF 问答消息
   async sendPdfMessage(prompt, chatId) {
     try {
+      const token = getToken()
       const response = await fetch(`${BASE_URL}/ai/pdf/chat?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`, {
         method: 'GET',
+        headers: {
+          'authentication': token || ''
+        },
         // 确保使用流式响应
         signal: AbortSignal.timeout(30000) // 30秒超时
       })
