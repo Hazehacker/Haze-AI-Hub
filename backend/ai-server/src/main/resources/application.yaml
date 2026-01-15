@@ -11,6 +11,11 @@ spring:
         options:
           model: deepseek-r1
           temperature: 0.8
+  datasource:
+    url: jdbc:postgresql://${ai.datasource.host:localhost}:${ai.datasource.port:5432}/${ai.datasource.database:haze-ai-hub}?sslmode=disable
+    driver-class-name: ${ai.datasource.driver-class-name:org.postgresql.Driver}
+    username: ${ai.datasource.username:postgres}
+    password: ${ai.datasource.password:1234}
 logging:
   level:
     org.springframework.ai.chat.client.advisor: debug

@@ -6,17 +6,24 @@ import org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
-import top.hazenix.hazeaihub.service.BailianThinkingService;
+import top.hazenix.hazeaihub.service.IBailianThinkingService;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * @description: 对话相关接口
+ * @author: Hazenix
+ * @version: 0.0.1
+ * @date: 2026/1/15
+ * @return
+ */
 @RestController
 @RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
 public class ChatController {
     private final ChatClient chatClient;
-    private final BailianThinkingService bailianThinkingService;
+    private final IBailianThinkingService bailianThinkingService;
 
     /**
      * 原有的聊天接口（不包含思考过程）

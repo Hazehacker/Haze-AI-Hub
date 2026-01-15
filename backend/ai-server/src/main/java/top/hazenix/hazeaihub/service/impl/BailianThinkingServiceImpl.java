@@ -1,4 +1,4 @@
-package top.hazenix.hazeaihub.service;
+package top.hazenix.hazeaihub.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+import top.hazenix.hazeaihub.service.IBailianThinkingService;
 
 import java.net.ConnectException;
 import java.nio.channels.UnresolvedAddressException;
@@ -33,10 +33,10 @@ import java.util.Map;
  * @date: 2026/1/15
  * @return
  */
-
 @Slf4j
 @Service
-public class BailianThinkingService {
+//public class BailianThinkingServiceImpl implements IBailianThinkingService {
+public class BailianThinkingServiceImpl  {
 
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
@@ -48,9 +48,9 @@ public class BailianThinkingService {
     @Value("${spring.ai.openai.chat.options.model:deepseek-r1}")
     private String model;
 
-    public BailianThinkingService(WebClient.Builder webClientBuilder, 
-                                  ObjectMapper objectMapper,
-                                  ChatMemory chatMemory) {
+    public BailianThinkingServiceImpl(WebClient.Builder webClientBuilder,
+                                      ObjectMapper objectMapper,
+                                      ChatMemory chatMemory) {
         this.webClient = webClientBuilder
                 .baseUrl("https://dashscope.aliyuncs.com/compatible-mode/v1")
                 .build();
