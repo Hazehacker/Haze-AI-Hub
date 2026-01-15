@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @RestController
-@RequestMapping("/ai")
+@RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
 public class ChatController {
     private final ChatClient chatClient;
