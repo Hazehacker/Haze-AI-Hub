@@ -17,9 +17,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+
 /**
- * 直接调用阿里云百炼 API 以支持思考过程
+ * @description: 支持思考过程的聊天服务——SpringAI 1.0.0-M5 不支持读取思考过程，
+ * 所以编写这个Service，直接调用阿里云百炼 API 以支持思考过程
+ * @author: Hazenix
+ * @version: 0.0.1
+ * @date: 2026/1/15
+ * @return
  */
+
 @Slf4j
 @Service
 public class BailianThinkingService {
