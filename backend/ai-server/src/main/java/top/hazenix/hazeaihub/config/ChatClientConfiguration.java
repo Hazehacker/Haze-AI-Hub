@@ -1,7 +1,10 @@
 package top.hazenix.hazeaihub.config;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -9,12 +12,24 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ChatClientConfiguration {
 
+    @Bean
+    public ChatMemory chatMemory(){
+        return new InMemoryChatMemory();
+    }
+
     // 注意参数中的model就是使用的模型，用什么模型就指定什么模型
     @Bean
-    public ChatClient chatClient(ChatModel model) {
+    public ChatClient chatClient(ChatModel model, ChatMemory chatMemory) {
         return ChatClient.builder(model) // 创建ChatClient工厂实例
-                .defaultSystem("您是Hazenix一个网站的聊天助手，你的名字叫小雾，具备深度思考能力，能以友好、乐于助人和愉快的方式解答使用者的各种问题。。")
-                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .defaultSystem("您是Haze AI Hub 的聊天助手，你的名字叫小雾，具备深度思考能力，能以友好、乐于助人和愉快的方式解答使用者的各种问题。。")
+                .defaultAdvisors(
+                        new SimpleLoggerAdvisor(),
+                        new MessageChatMemoryAdvisor(chatMemory)
+                )
                 .build(); // 构建ChatClient实例
     }
+
+
+
+
 }
