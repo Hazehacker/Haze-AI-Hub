@@ -21,3 +21,16 @@ logging:
     org.springframework.ai.chat.client.advisor: debug
     top.hazenix.hazeaihub: debug
 
+mybatis-plus:
+  #mapper配置文件
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: top.hazenix.hazeaihub.entity # 别名扫描包(项目中实体类放置的包路径)
+  configuration:
+    #开启驼峰和下划线的映射
+    map-underscore-to-camel-case: true
+    # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    cache-enabled: false # 是否开启二级缓存
+  global-config:
+    db-config:
+      id-type: AUTO # 设置全局的id生成策略
+      update-strategy: not_null # 设置更新策略：只更新非空字段
