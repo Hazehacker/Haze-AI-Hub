@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
 @TableName("chat_session")
 public class ChatSession {
     @ApiModelProperty(value = "会话id[主键]", required = true)
-    @NotBlank(message = "主键ID不能为空")
     private Long id;
 
     @ApiModelProperty(value = "用户id", required = true)

@@ -125,6 +125,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch, onUnmounted } from 'vue'
 import { useDark } from '@vueuse/core'
+import { useUserStore } from '@/stores/user'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { 
@@ -142,6 +143,7 @@ import { useRouter } from 'vue-router'
 import PDFViewer from '../components/PDFViewer.vue'
 
 const isDark = useDark()
+const userStore = useUserStore()
 const router = useRouter()
 const messagesRef = ref(null)
 const inputRef = ref(null)
@@ -332,15 +334,21 @@ const handleDrop = async (event) => {
   uploadingFileName.value = file.name
   
   try {
+    // 先创建会话获取ID
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      throw new Error('用户未登录')
+    }
+    
+    const sessionId = currentChatId.value || await chatAPI.createSession(userId, 'pdf', `PDF对话: ${file.name}`)
+    currentChatId.value = sessionId
+    
     // 创建 FormData
     const formData = new FormData()
     formData.append('file', file)
     
-    // 生成临时 chatId 或使用现有的
-    const uploadChatId = currentChatId.value || `pdf_${Date.now()}`
-    
-    // 发送上传请求，修正 API 路径
-    const response = await fetch(`${BASE_URL}/ai/pdf/upload/${uploadChatId}`, {
+    // 发送上传请求，使用后端生成的会话ID
+    const response = await fetch(`${BASE_URL}/ai/pdf/upload/${sessionId}`, {
       method: 'POST',
       body: formData
     })
@@ -351,19 +359,18 @@ const handleDrop = async (event) => {
     
     const data = await response.json()
     
-    // 保存聊天 ID 和文件名
-    currentChatId.value = data.chatId || uploadChatId
+    // 保存文件名
     currentPdfName.value = file.name
     pdfFile.value = file
     
     // 添加到聊天历史
     const newChat = {
-      id: currentChatId.value,
+      id: sessionId,
       title: `PDF对话: ${file.name.slice(0, 20)}${file.name.length > 20 ? '...' : ''}`
     }
     
     // 更新聊天历史 - 避免重复添加
-    if (!chatHistory.value.some(chat => chat.id === currentChatId.value)) {
+    if (!chatHistory.value.some(chat => chat.id === sessionId)) {
       chatHistory.value = [newChat, ...chatHistory.value]
     }
     
@@ -500,15 +507,21 @@ const handleFileUpload = async (event) => {
   uploadingFileName.value = file.name
   
   try {
+    // 先创建会话获取ID
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      throw new Error('用户未登录')
+    }
+    
+    const sessionId = currentChatId.value || await chatAPI.createSession(userId, 'pdf', `PDF对话: ${file.name}`)
+    currentChatId.value = sessionId
+    
     // 创建 FormData
     const formData = new FormData()
     formData.append('file', file)
     
-    // 生成临时 chatId 或使用现有的
-    const uploadChatId = currentChatId.value || `pdf_${Date.now()}`
-    
-    // 发送上传请求，修正 API 路径
-    const response = await fetch(`${BASE_URL}/ai/pdf/upload/${uploadChatId}`, {
+    // 发送上传请求，使用后端生成的会话ID
+    const response = await fetch(`${BASE_URL}/ai/pdf/upload/${sessionId}`, {
       method: 'POST',
       body: formData
     })
@@ -519,19 +532,18 @@ const handleFileUpload = async (event) => {
     
     const data = await response.json()
     
-    // 保存聊天 ID 和文件名
-    currentChatId.value = data.chatId || uploadChatId
+    // 保存文件名
     currentPdfName.value = file.name
     pdfFile.value = file
     
     // 添加到聊天历史
     const newChat = {
-      id: currentChatId.value,
+      id: sessionId,
       title: `PDF对话: ${file.name.slice(0, 20)}${file.name.length > 20 ? '...' : ''}`
     }
     
     // 更新聊天历史 - 避免重复添加
-    if (!chatHistory.value.some(chat => chat.id === currentChatId.value)) {
+    if (!chatHistory.value.some(chat => chat.id === sessionId)) {
       chatHistory.value = [newChat, ...chatHistory.value]
     }
     

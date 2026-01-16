@@ -4,6 +4,41 @@ import { getToken } from '@/utils/auth'
 const BASE_URL = 'http://localhost:8080/api/v1'
 
 export const chatAPI = {
+  // 创建新会话
+  async createSession(userId, type, title = null) {
+    try {
+      const token = getToken()
+      const params = new URLSearchParams({
+        userId: userId.toString(),
+        type: type
+      })
+      if (title) {
+        params.append('title', title)
+      }
+      
+      const response = await fetch(`${BASE_URL}/ai/session/create?${params}`, {
+        method: 'POST',
+        headers: {
+          'authentication': token || ''
+        }
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data  // 返回会话ID
+      } else {
+        throw new Error(result.msg || '创建会话失败')
+      }
+    } catch (error) {
+      console.error('创建会话失败:', error)
+      throw error
+    }
+  },
+
   // 发送聊天消息
   async sendMessage(data, chatId) {
     try {

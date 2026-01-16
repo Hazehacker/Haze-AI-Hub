@@ -86,11 +86,13 @@
 <script setup>
 import { ref, onMounted, nextTick, computed } from 'vue'
 import { useDark } from '@vueuse/core'
+import { useUserStore } from '@/stores/user'
 import { PaperAirplaneIcon, HeartIcon } from '@heroicons/vue/24/outline'
 import ChatMessage from '../components/ChatMessage.vue'
 import { chatAPI } from '../services/api'
 
 const isDark = useDark()
+const userStore = useUserStore()
 const messagesRef = ref(null)
 const inputRef = ref(null)
 const userInput = ref('')
@@ -124,20 +126,33 @@ const scrollToBottom = async () => {
 
 // 开始游戏
 const startGame = async () => {
-  isGameStarted.value = true
-  isGameOver.value = false
-  gameResult.value = ''
-  currentChatId.value = Date.now().toString()
-  currentMessages.value = []
-  currentRound.value = 0
-  forgiveness.value = 0  // 重置原谅值
-  
-  // 发送开始游戏请求
-  const startPrompt = angerReason.value 
-    ? `开始游戏，女友生气原因：${angerReason.value}`
-    : '开始游戏'
-  
-  await sendMessage(startPrompt)
+  try {
+    // 从后端创建新会话并获取ID
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      console.error('用户未登录')
+      return
+    }
+    
+    const sessionId = await chatAPI.createSession(userId, 'game', '哄哄模拟器')
+    
+    isGameStarted.value = true
+    isGameOver.value = false
+    gameResult.value = ''
+    currentChatId.value = sessionId
+    currentMessages.value = []
+    currentRound.value = 0
+    forgiveness.value = 0  // 重置原谅值
+    
+    // 发送开始游戏请求
+    const startPrompt = angerReason.value 
+      ? `开始游戏，女友生气原因：${angerReason.value}`
+      : '开始游戏'
+    
+    await sendMessage(startPrompt)
+  } catch (error) {
+    console.error('创建游戏会话失败:', error)
+  }
 }
 
 // 重置游戏

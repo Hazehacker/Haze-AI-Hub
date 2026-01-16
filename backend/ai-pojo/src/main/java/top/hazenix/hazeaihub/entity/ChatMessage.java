@@ -18,7 +18,6 @@ import java.util.Map;
 public class ChatMessage {
 
     @ApiModelProperty(value = "消息id[主键]", required = true)
-    @NotBlank(message = "主键ID不能为空")
     private Long id;
 
     @ApiModelProperty(value = "会话id[外键]", required = true)

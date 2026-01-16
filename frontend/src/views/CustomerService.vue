@@ -76,6 +76,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { useDark } from '@vueuse/core'
+import { useUserStore } from '@/stores/user'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { 
@@ -88,6 +89,7 @@ import ChatMessage from '../components/ChatMessage.vue'
 import { chatAPI } from '../services/api'
 
 const isDark = useDark()
+const userStore = useUserStore()
 const messagesRef = ref(null)
 const inputRef = ref(null)
 const userInput = ref('')
@@ -242,20 +244,31 @@ const loadChatHistory = async () => {
 }
 
 // 开始新对话
-const startNewChat = async () => {  // 添加 async
-  const newChatId = Date.now().toString()
-  currentChatId.value = newChatId
-  currentMessages.value = []
-  
-  // 添加新对话到历史列表
-  const newChat = {
-    id: newChatId,
-    title: `咨询 ${newChatId.slice(-6)}`
-  }
-  chatHistory.value = [newChat, ...chatHistory.value]
+const startNewChat = async () => {
+  try {
+    // 从后端创建新会话并获取ID
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      console.error('用户未登录')
+      return
+    }
+    
+    const sessionId = await chatAPI.createSession(userId, 'service')
+    currentChatId.value = sessionId
+    currentMessages.value = []
+    
+    // 添加新对话到历史列表
+    const newChat = {
+      id: sessionId,
+      title: `咨询 ${sessionId.toString().slice(-6)}`
+    }
+    chatHistory.value = [newChat, ...chatHistory.value]
 
-  // 发送初始问候语
-  await sendMessage('你好')
+    // 发送初始问候语
+    await sendMessage('你好')
+  } catch (error) {
+    console.error('创建新会话失败:', error)
+  }
 }
 
 onMounted(() => {

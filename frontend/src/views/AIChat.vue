@@ -90,6 +90,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { useDark } from '@vueuse/core'
+import { useUserStore } from '@/stores/user'
 import { 
   ChatBubbleLeftRightIcon, 
   PaperAirplaneIcon,
@@ -102,6 +103,7 @@ import ChatMessage from '../components/ChatMessage.vue'
 import { chatAPI } from '../services/api'
 
 const isDark = useDark()
+const userStore = useUserStore()
 const messagesRef = ref(null)
 const inputRef = ref(null)
 const userInput = ref('')
@@ -363,17 +365,28 @@ const loadChatHistory = async () => {
 }
 
 // 开始新对话
-const startNewChat = () => {
-  const newChatId = Date.now().toString()
-  currentChatId.value = newChatId
-  currentMessages.value = []
-  
-  // 添加新对话到聊天历史列表
-  const newChat = {
-    id: newChatId,
-    title: `对话 ${newChatId.slice(-6)}`
+const startNewChat = async () => {
+  try {
+    // 从后端创建新会话并获取ID
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      console.error('用户未登录')
+      return
+    }
+    
+    const sessionId = await chatAPI.createSession(userId, 'chat')
+    currentChatId.value = sessionId
+    currentMessages.value = []
+    
+    // 添加新对话到聊天历史列表
+    const newChat = {
+      id: sessionId,
+      title: `对话 ${sessionId.toString().slice(-6)}`
+    }
+    chatHistory.value = [newChat, ...chatHistory.value]
+  } catch (error) {
+    console.error('创建新会话失败:', error)
   }
-  chatHistory.value = [newChat, ...chatHistory.value] // 将新对话添加到列表开头
 }
 
 // 格式化文件大小
