@@ -1,7 +1,7 @@
 package top.hazenix.hazeaihub.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,23 +17,26 @@ import java.util.Map;
 @AllArgsConstructor
 public class ChatMessage {
 
-    @ApiModelProperty(value = "消息id[主键]", required = true)
+    @Schema(description = "消息id[主键]")
     private Long id;
 
-    @ApiModelProperty(value = "会话id[外键]", required = true)
+    @Schema(description = "会话id[外键]")
     @NotBlank(message = "所属会话ID不能为空")
     private Long sessionId;
 
-    @ApiModelProperty(value = "消息角色(类型)[user/assistant/system]")
+    @Schema(description = "消息角色(类型)[U/A/system]")
     private String role;
 
-    @ApiModelProperty(value = "消息内容")
+    @Schema(description = "消息内容")
     private String content;
 
-    @ApiModelProperty(value = "扩展信息[模型名、token统计、thinking片段汇总、解析到的“原谅值”等]")
+    @Schema(description = "消息状态[true:正常 | false:已删除]")
+    private Boolean status;
+
+    @Schema(description = "扩展信息[模型名、token统计、thinking片段汇总、解析到的原谅值等]")
     private Map<String, Object> metadataJson;
 
-    @ApiModelProperty(value = "创建时间")
+    @Schema(description = "创建时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 

@@ -8,15 +8,11 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurationSupport;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 
-import springfox.documentation.builders.ApiInfoBuilder;
-import springfox.documentation.builders.PathSelectors;
-import springfox.documentation.builders.RequestHandlerSelectors;
-import springfox.documentation.service.ApiInfo;
-import springfox.documentation.spi.DocumentationType;
-import springfox.documentation.spring.web.plugins.Docket;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
 import top.hazenix.hazeaihub.interceptor.JwtTokenAdminInterceptor;
 import top.hazenix.hazeaihub.interceptor.JwtTokenUserInterceptor;
 import top.hazenix.hazeaihub.json.JacksonObjectMapper;
@@ -30,7 +26,7 @@ import java.util.List;
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
-public class WebMvcConfiguration extends WebMvcConfigurationSupport {
+public class WebMvcConfiguration implements WebMvcConfigurer {
 
 
     private final JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
@@ -42,71 +38,43 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
      *
      * @param registry
      */
-    protected void addInterceptors(InterceptorRegistry registry) {
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
         log.info("开始注册自定义拦截器...");
         registry.addInterceptor(jwtTokenAdminInterceptor)
-                .addPathPatterns("/admin/**");
+                .addPathPatterns("/admin/**")
+                .excludePathPatterns(
+                        "/doc.html",
+                        "/webjars/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/swagger-resources/**"
+                );
         registry.addInterceptor(jwtTokenUserInterceptor)
-                .addPathPatterns("/api/v1/**");
-
-
+                .addPathPatterns("/api/v1/**")
+                .excludePathPatterns(
+                        "/doc.html",
+                        "/webjars/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**",
+                        "/swagger-resources/**"
+                );
     }
 
     /**
-     * 通过knife4j生成接口文档的相关配置
+     * 通过knife4j生成接口文档的相关配置 (OpenAPI 3.0)
      * @return
      */
-//    @Bean
-//    public Docket docket() {
-//        ApiInfo apiInfo = new ApiInfoBuilder()
-//                .title("个人博客项目接口测试")
-//                .version("2.0")
-//                .description("个人博客项目接口测试")
-//                .build();
-//        Docket docket = new Docket(DocumentationType.SWAGGER_2)
-//                .apiInfo(apiInfo)
-//                .select()
-//                //扫描的包要写对
-//                .apis(RequestHandlerSelectors.basePackage("top.hazenix.controller"))
-//                .paths(PathSelectors.any())
-//                .build();
-//        return docket;
-//    }
     @Bean
-    public Docket docketAdmin() {
+    public OpenAPI customOpenAPI() {
         log.info("准备生成接口文档");
-        ApiInfo apiInfo = new ApiInfoBuilder()
-                .title("AI-Hub项目接口测试")
-                .version("1.0")
-                .description("AI-Hub项目接口测试")
-                .build();
-        Docket docket = new Docket(DocumentationType.SWAGGER_2)
-                .groupName("管理端接口")
-                .apiInfo(apiInfo)
-                .select()
-                //扫描的包要写对
-                .apis(RequestHandlerSelectors.basePackage("top.hazenix.hazeaihub.controller.admin"))
-                .paths(PathSelectors.any())
-                .build();
-        return docket;
-    }
-    @Bean
-    public Docket docketUser() {
-        log.info("准备生成接口文档");
-        ApiInfo apiInfo = new ApiInfoBuilder()
-                .title("AI-Hub项目接口测试")
-                .version("2.0")
-                .description("AI-Hub项目接口测试")
-                .build();
-        Docket docket = new Docket(DocumentationType.SWAGGER_2)
-                .groupName("用户端接口")
-                .apiInfo(apiInfo)
-                .select()
-                //扫描的包要写对
-                .apis(RequestHandlerSelectors.basePackage("top.hazenix.hazeaihub.controller.user"))
-                .paths(PathSelectors.any())
-                .build();
-        return docket;
+        return new OpenAPI()
+                .info(new Info()
+                        .title("AI-Hub项目接口文档")
+                        .version("2.0")
+                        .description("AI-Hub项目接口测试文档"));
     }
 
 
@@ -119,15 +87,26 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
 
 
     /**
-     * (knife4j)给doc.html设置静态
-     * 资源映射
+     * (knife4j)给doc.html设置静态资源映射
      * @param registry
      */
-    protected void addResourceHandlers(ResourceHandlerRegistry registry) {
-        //如果不设置静态资源映射,访问http://localhost:8080/doc.html，idea会把doc.html看成一个controll层的一个接口
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
         log.info("开始设置静态资源映射");
-        registry.addResourceHandler("/doc.html").addResourceLocations("classpath:/META-INF/resources/");
-        registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
+        
+        // Knife4j 文档页面和静态资源
+        registry.addResourceHandler("/doc.html**", "/*.js", "/*.css", "/*.png", "/*.ico")
+                .addResourceLocations("classpath:/META-INF/resources/");
+        
+        // webjars 资源
+        registry.addResourceHandler("/webjars/**")
+                .addResourceLocations("classpath:/META-INF/resources/webjars/");
+        
+        // Swagger UI 资源
+        registry.addResourceHandler("/swagger-ui.html")
+                .addResourceLocations("classpath:/META-INF/resources/");
+        registry.addResourceHandler("/swagger-ui/**")
+                .addResourceLocations("classpath:/META-INF/resources/swagger-ui/");
     }
 
     /**
@@ -135,7 +114,7 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
      * @param converters
      */
     @Override
-    protected void extendMessageConverters(List<HttpMessageConverter<?>> converters){
+    public void extendMessageConverters(List<HttpMessageConverter<?>> converters){
         //创建一个消息转换器对象
         MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
 
@@ -143,9 +122,6 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
         converter.setObjectMapper(new JacksonObjectMapper());
         //把自己的消息转换器加到converter容器,并把自己的消息转换器优先级放到最高
         converters.add(0,converter);
-
-        super.extendMessageConverters(converters);
-
     }
 
 

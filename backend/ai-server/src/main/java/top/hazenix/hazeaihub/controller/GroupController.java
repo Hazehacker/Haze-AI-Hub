@@ -1,7 +1,7 @@
 package top.hazenix.hazeaihub.controller;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,7 @@ import java.util.List;
 @RequestMapping("/api/v1/group")
 @RequiredArgsConstructor
 @Slf4j
-@Api("分组相关接口")
+@Tag(name = "分组相关接口")
 public class GroupController {
     private final IGroupService groupService;
     /**
@@ -34,7 +34,7 @@ public class GroupController {
      * @return
      */
     @PostMapping
-    @ApiOperation("新增分组")
+    @Operation(summary = "新增分组")
     public Result addGroup(@Valid @RequestBody GroupDTO groupDTO) {
         log.info("新增分组:{}", groupDTO);
         groupService.addGroup(groupDTO);
@@ -48,7 +48,7 @@ public class GroupController {
      * @return
      */
     @GetMapping
-    @ApiOperation("查询分组")
+    @Operation(summary = "查询分组")
     public Result queryGroup() {
         log.info("查询分组");
         List<Group> list = groupService.queryGroup();
@@ -63,7 +63,7 @@ public class GroupController {
      * @return
      */
     @DeleteMapping("/{id}")
-    @ApiOperation("删除分组")
+    @Operation(summary = "删除分组")
     public Result deleteGroup(@PathVariable Long id) {
         log.info("删除分组:{}", id);
         groupService.deleteGroup(id);
@@ -77,7 +77,7 @@ public class GroupController {
      * @return
      */
     @PutMapping("/{id}")
-    @ApiOperation("修改分组")
+    @Operation(summary = "修改分组")
     public Result updateGroup(@PathVariable Long id, @Valid @RequestBody GroupDTO groupDTO) {
         log.info("修改分组:{}", groupDTO);
         groupService.updateGroup(id, groupDTO);

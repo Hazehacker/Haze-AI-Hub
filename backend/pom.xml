@@ -29,6 +29,7 @@
 	</scm>
 	<modules>
 		<module>ai-common</module>
+		<module>ai-pojo</module>
 		<module>ai-server</module>
 	</modules>
 
