@@ -9,9 +9,40 @@
             新对话
           </button>
         </div>
+        
+        <div class="group-section">
+          <div class="group-header">
+            <span class="group-title">分组</span>
+            <button class="add-group-btn" @click="showGroupDialog = true" title="创建分组">
+              <PlusIcon class="icon" />
+            </button>
+          </div>
+          
+          <div class="group-list">
+            <div 
+              v-for="group in groups" 
+              :key="group.id"
+              class="group-item"
+              :class="{ 'active': selectedGroupId === group.id }"
+              @click="selectGroup(group.id)"
+            >
+              <span class="group-icon">📁</span>
+              <span class="group-name">{{ group.name }}</span>
+              <div class="group-actions">
+                <button class="action-btn" @click.stop="editGroup(group)" title="编辑">
+                  <PencilIcon class="icon" />
+                </button>
+                <button class="action-btn delete" @click.stop="deleteGroupConfirm(group.id)" title="删除">
+                  <TrashIcon class="icon" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div class="history-list">
           <div 
-            v-for="chat in chatHistory" 
+            v-for="chat in filteredChatHistory" 
             :key="chat.id"
             class="history-item"
             :class="{ 'active': currentChatId === chat.id }"
@@ -84,11 +115,18 @@
         </div>
       </div>
     </div>
+    
+    <GroupDialog
+      v-model:visible="showGroupDialog"
+      :title="editingGroup ? '编辑分组' : '创建分组'"
+      :default-value="editingGroup?.name || ''"
+      @confirm="handleGroupConfirm"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { useDark } from '@vueuse/core'
 import { useUserStore } from '@/stores/user'
 import { 
@@ -97,10 +135,14 @@ import {
   PlusIcon,
   PaperClipIcon,
   DocumentIcon,
-  XMarkIcon
+  XMarkIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/vue/24/outline'
 import ChatMessage from '../components/ChatMessage.vue'
+import GroupDialog from '../components/GroupDialog.vue'
 import { chatAPI } from '../services/api'
+import { groupAPI } from '../api/group'
 
 const isDark = useDark()
 const userStore = useUserStore()
@@ -113,6 +155,19 @@ const currentMessages = ref([])
 const chatHistory = ref([])
 const fileInput = ref(null)
 const selectedFiles = ref([])
+const groups = ref([])
+const selectedGroupId = ref(null)
+const showGroupDialog = ref(false)
+const editingGroup = ref(null)
+
+// 过滤聊天历史
+const filteredChatHistory = computed(() => {
+  if (!selectedGroupId.value) {
+    return chatHistory.value
+  }
+  // TODO: 根据分组过滤聊天记录（需要后端支持）
+  return chatHistory.value
+})
 
 // 自动调整输入框高度
 const adjustTextareaHeight = () => {
@@ -406,8 +461,79 @@ const removeFile = (index) => {
 
 onMounted(() => {
   loadChatHistory()
+  loadGroups()
   adjustTextareaHeight()
 })
+
+// 加载分组列表
+const loadGroups = async () => {
+  try {
+    groups.value = await groupAPI.getGroups()
+  } catch (error) {
+    console.error('加载分组失败:', error)
+    groups.value = []
+  }
+}
+
+// 选择分组
+const selectGroup = (groupId) => {
+  selectedGroupId.value = selectedGroupId.value === groupId ? null : groupId
+}
+
+// 编辑分组
+const editGroup = (group) => {
+  editingGroup.value = group
+  showGroupDialog.value = true
+}
+
+// 删除分组确认
+const deleteGroupConfirm = async (groupId) => {
+  if (!confirm('确定要删除这个分组吗？')) return
+  
+  try {
+    await groupAPI.deleteGroup(groupId)
+    await loadGroups()
+    if (selectedGroupId.value === groupId) {
+      selectedGroupId.value = null
+    }
+  } catch (error) {
+    console.error('删除分组失败:', error)
+    alert('删除分组失败，请稍后重试')
+  }
+}
+
+// 处理分组对话框确认
+const handleGroupConfirm = async (name, icon) => {
+  try {
+    const userId = userStore.userInfo?.id
+    if (!userId) {
+      alert('用户未登录')
+      return
+    }
+    
+    if (editingGroup.value) {
+      // 更新分组
+      await groupAPI.updateGroup(editingGroup.value.id, {
+        name,
+        userId,
+        sort: editingGroup.value.sort
+      })
+    } else {
+      // 创建新分组
+      await groupAPI.createGroup({
+        name,
+        userId,
+        sort: groups.value.length
+      })
+    }
+    
+    await loadGroups()
+    editingGroup.value = null
+  } catch (error) {
+    console.error('保存分组失败:', error)
+    alert('保存分组失败，请稍后重试')
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -443,11 +569,12 @@ onMounted(() => {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
     
     .history-header {
-      flex-shrink: 0;  // 防止头部压缩
+      flex-shrink: 0;
       padding: 1rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
       
       h2 {
         font-size: 1.25rem;
@@ -476,9 +603,129 @@ onMounted(() => {
       }
     }
     
+    .group-section {
+      flex-shrink: 0;
+      padding: 1rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      
+      .group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+        
+        .group-title {
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: #666;
+        }
+        
+        .add-group-btn {
+          width: 1.75rem;
+          height: 1.75rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          background: rgba(0, 124, 240, 0.1);
+          color: #007CF0;
+          border-radius: 0.375rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          
+          &:hover {
+            background: rgba(0, 124, 240, 0.2);
+          }
+          
+          .icon {
+            width: 1rem;
+            height: 1rem;
+          }
+        }
+      }
+      
+      .group-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        
+        .group-item {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          border-radius: 0.5rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          position: relative;
+          
+          &:hover {
+            background: rgba(0, 0, 0, 0.05);
+            
+            .group-actions {
+              opacity: 1;
+            }
+          }
+          
+          &.active {
+            background: rgba(0, 124, 240, 0.1);
+            color: #007CF0;
+          }
+          
+          .group-icon {
+            font-size: 1rem;
+          }
+          
+          .group-name {
+            flex: 1;
+            font-size: 0.875rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          
+          .group-actions {
+            display: flex;
+            gap: 0.25rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+            
+            .action-btn {
+              width: 1.5rem;
+              height: 1.5rem;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              border: none;
+              background: rgba(0, 0, 0, 0.05);
+              color: #666;
+              border-radius: 0.25rem;
+              cursor: pointer;
+              transition: all 0.2s;
+              
+              &:hover {
+                background: rgba(0, 124, 240, 0.1);
+                color: #007CF0;
+              }
+              
+              &.delete:hover {
+                background: rgba(255, 77, 79, 0.1);
+                color: #ff4d4f;
+              }
+              
+              .icon {
+                width: 0.875rem;
+                height: 0.875rem;
+              }
+            }
+          }
+        }
+      }
+    }
+    
     .history-list {
       flex: 1;
-      overflow-y: auto;  // 允许历史记录滚动
+      overflow-y: auto;
       padding: 0 1rem 1rem;
       
       .history-item {
@@ -714,6 +961,57 @@ onMounted(() => {
   .sidebar {
     background: rgba(40, 40, 40, 0.95);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    
+    .history-header {
+      border-bottom-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    .group-section {
+      border-bottom-color: rgba(255, 255, 255, 0.05);
+      
+      .group-header {
+        .group-title {
+          color: #999;
+        }
+        
+        .add-group-btn {
+          background: rgba(0, 124, 240, 0.2);
+          
+          &:hover {
+            background: rgba(0, 124, 240, 0.3);
+          }
+        }
+      }
+      
+      .group-list {
+        .group-item {
+          &:hover {
+            background: rgba(255, 255, 255, 0.05);
+          }
+          
+          &.active {
+            background: rgba(0, 124, 240, 0.2);
+          }
+          
+          .group-actions {
+            .action-btn {
+              background: rgba(255, 255, 255, 0.1);
+              color: #999;
+              
+              &:hover {
+                background: rgba(0, 124, 240, 0.2);
+                color: #007CF0;
+              }
+              
+              &.delete:hover {
+                background: rgba(255, 77, 79, 0.2);
+                color: #ff4d4f;
+              }
+            }
+          }
+        }
+      }
+    }
   }
   
   .chat-main {
