@@ -30,10 +30,14 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     # log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     cache-enabled: false # 是否开启二级缓存
+    # 配置默认的JDBC类型映射
+    jdbc-type-for-null: NULL
   global-config:
     db-config:
       id-type: AUTO # 设置全局的id生成策略
       update-strategy: not_null # 设置更新策略：只更新非空字段
+  # 配置类型处理器
+  type-handlers-package: top.hazenix.hazeaihub.handler
 # Knife4j和SpringDoc配置
 springdoc:
   api-docs:

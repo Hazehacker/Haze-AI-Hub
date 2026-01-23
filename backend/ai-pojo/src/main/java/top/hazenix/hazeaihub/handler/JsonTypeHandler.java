@@ -1,9 +1,12 @@
 package top.hazenix.hazeaihub.handler;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
+import org.apache.ibatis.type.MappedJdbcTypes;
 import org.apache.ibatis.type.MappedTypes;
 import org.postgresql.util.PGobject;
 
@@ -13,10 +16,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
 
+@Slf4j
 @MappedTypes({Map.class})
+@MappedJdbcTypes(JdbcType.OTHER)
 public class JsonTypeHandler extends BaseTypeHandler<Map<String, Object>> {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> TYPE_REFERENCE = new TypeReference<Map<String, Object>>() {};
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, Map<String, Object> parameter, JdbcType jdbcType) throws SQLException {
@@ -27,36 +33,48 @@ public class JsonTypeHandler extends BaseTypeHandler<Map<String, Object>> {
             jsonObject.setValue(objectMapper.writeValueAsString(parameter));
             ps.setObject(i, jsonObject);
         } catch (JsonProcessingException e) {
+            log.error("Error converting Map to JSON string", e);
             throw new SQLException("Error converting Map to JSON string", e);
         }
     }
 
     @Override
     public Map<String, Object> getNullableResult(ResultSet rs, String columnName) throws SQLException {
-        String json = rs.getString(columnName);
-        return parseJson(json);
+        return parseJson(rs.getObject(columnName));
     }
 
     @Override
     public Map<String, Object> getNullableResult(ResultSet rs, int columnIndex) throws SQLException {
-        String json = rs.getString(columnIndex);
-        return parseJson(json);
+        return parseJson(rs.getObject(columnIndex));
     }
 
     @Override
     public Map<String, Object> getNullableResult(CallableStatement cs, int columnIndex) throws SQLException {
-        String json = cs.getString(columnIndex);
-        return parseJson(json);
+        return parseJson(cs.getObject(columnIndex));
     }
 
-    private Map<String, Object> parseJson(String json) throws SQLException {
-        if (json == null || json.isEmpty()) {
+    private Map<String, Object> parseJson(Object jsonObject) throws SQLException {
+        if (jsonObject == null) {
             return null;
         }
+        
         try {
-            return objectMapper.readValue(json, Map.class);
+            String json;
+            // 处理PGobject类型
+            if (jsonObject instanceof PGobject) {
+                json = ((PGobject) jsonObject).getValue();
+            } else {
+                json = jsonObject.toString();
+            }
+            
+            if (json == null || json.isEmpty() || "null".equals(json)) {
+                return null;
+            }
+            
+            return objectMapper.readValue(json, TYPE_REFERENCE);
         } catch (JsonProcessingException e) {
-            throw new SQLException("Error parsing JSON string to Map", e);
+            log.error("Error parsing JSON to Map: {}", jsonObject, e);
+            throw new SQLException("Error parsing JSON to Map", e);
         }
     }
 }

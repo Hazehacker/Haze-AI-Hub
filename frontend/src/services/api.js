@@ -89,14 +89,21 @@ export const chatAPI = {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const chatIds = await response.json()
-      // 转换为前端需要的格式
-      return chatIds.map(id => ({
-        id,
-        title: type === 'pdf' ? `PDF对话 ${id.slice(-6)}` : 
-               type === 'service' ? `咨询 ${id.slice(-6)}` :
-               `对话 ${id.slice(-6)}`
-      }))
+      const result = await response.json()
+      
+      // 处理返回的Result对象
+      if (result.code === 200 && result.data) {
+        const chatIds = result.data
+        // 转换为前端需要的格式
+        return chatIds.map(id => ({
+          id,
+          title: type === 'pdf' ? `PDF对话 ${id.toString().slice(-6)}` : 
+                 type === 'service' ? `咨询 ${id.toString().slice(-6)}` :
+                 `对话 ${id.toString().slice(-6)}`
+        }))
+      }
+      
+      return []
     } catch (error) {
       console.error('API Error:', error)
       return []
@@ -115,12 +122,20 @@ export const chatAPI = {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const messages = await response.json()
-      // 添加时间戳
-      return messages.map(msg => ({
-        ...msg,
-        timestamp: new Date() // 由于后端没有提供时间戳，这里临时使用当前时间
-      }))
+      const result = await response.json()
+      
+      // 处理返回的Result对象
+      if (result.code === 200 && result.data) {
+        // 添加时间戳并转换为前端需要的格式
+        return result.data.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+          metadata: msg.metadataJson // 保留元数据
+        }))
+      }
+      
+      return []
     } catch (error) {
       console.error('API Error:', error)
       return []

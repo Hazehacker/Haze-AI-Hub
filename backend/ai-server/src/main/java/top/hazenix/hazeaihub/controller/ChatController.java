@@ -75,7 +75,7 @@ public class ChatController {
     public Flux<String> chatWithThinkingText(
             @RequestParam String prompt,
             @RequestParam(required = false) String chatId,
-            @RequestParam(required = false) Boolean enableThinking,
+            @RequestParam(required = false, defaultValue = "true") Boolean enableThinking,
             @RequestParam(required = false) Integer thinkingBudget) {
         
         AtomicBoolean thinkingStarted = new AtomicBoolean(false);

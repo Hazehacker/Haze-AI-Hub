@@ -5,6 +5,25 @@
       <ComputerDesktopIcon v-else class="icon" :class="{ 'assistant': !isUser }" />
     </div>
     <div class="content">
+      <!-- 思考过程展示区域 -->
+      <div v-if="hasThinkingContent && !isUser" class="thinking-section">
+        <div class="thinking-header" @click="toggleThinking">
+          <div class="thinking-title">
+            <svg class="thinking-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <span>深度思考已完成</span>
+            <span class="thinking-time">(用时{{ thinkingTime }})</span>
+          </div>
+          <svg class="expand-icon" :class="{ 'expanded': isThinkingExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+        <div v-show="isThinkingExpanded" class="thinking-content">
+          <div class="thinking-text">{{ thinkingContent }}</div>
+        </div>
+      </div>
+      
       <div class="text-container">
         <button v-if="isUser" class="user-copy-button" @click="copyContent" :title="copyButtonTitle">
           <DocumentDuplicateIcon v-if="!copied" class="copy-icon" />
@@ -36,6 +55,29 @@ import 'highlight.js/styles/github-dark.css'
 const contentRef = ref(null)
 const copied = ref(false)
 const copyButtonTitle = computed(() => copied.value ? '已复制' : '复制内容')
+const isThinkingExpanded = ref(false)
+
+// 提取思考内容
+const thinkingContent = computed(() => {
+  if (!props.message.metadata?.thinking_content) return ''
+  return props.message.metadata.thinking_content
+})
+
+// 检查是否有思考内容
+const hasThinkingContent = computed(() => {
+  return !!thinkingContent.value && thinkingContent.value.trim().length > 0
+})
+
+// 思考时间（模拟，实际可以从metadata中获取）
+const thinkingTime = computed(() => {
+  // 可以从metadata中获取实际的思考时间
+  return '12秒'
+})
+
+// 切换思考内容展开/收起
+const toggleThinking = () => {
+  isThinkingExpanded.value = !isThinkingExpanded.value
+}
 
 // 配置 marked
 marked.setOptions({
@@ -335,6 +377,76 @@ const formatTime = (timestamp) => {
     flex-direction: column;
     gap: 0.25rem;
     max-width: 80%;
+    
+    .thinking-section {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border: 1px solid #bae6fd;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+      
+      .thinking-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.2s;
+        
+        &:hover {
+          background-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .thinking-title {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+          color: #0369a1;
+          font-weight: 500;
+          
+          .thinking-icon {
+            width: 18px;
+            height: 18px;
+            color: #0284c7;
+          }
+          
+          .thinking-time {
+            color: #64748b;
+            font-weight: 400;
+            font-size: 0.8rem;
+          }
+        }
+        
+        .expand-icon {
+          width: 20px;
+          height: 20px;
+          color: #0369a1;
+          transition: transform 0.3s ease;
+          
+          &.expanded {
+            transform: rotate(180deg);
+          }
+        }
+      }
+      
+      .thinking-content {
+        padding: 0 1rem 1rem 1rem;
+        animation: slideDown 0.3s ease;
+        
+        .thinking-text {
+          padding: 0.75rem;
+          background: rgba(255, 255, 255, 0.6);
+          border-radius: 0.5rem;
+          color: #334155;
+          font-size: 0.875rem;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+      }
+    }
     
     .text-container {
       position: relative;

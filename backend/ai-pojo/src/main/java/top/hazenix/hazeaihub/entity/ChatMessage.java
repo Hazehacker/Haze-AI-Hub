@@ -3,12 +3,12 @@ package top.hazenix.hazeaihub.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.ibatis.type.JdbcType;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -36,7 +36,7 @@ public class ChatMessage {
     private Boolean status;
 
     @Schema(description = "扩展信息[模型名、token统计、thinking片段汇总、解析到的原谅值等]")
-    @TableField(typeHandler = top.hazenix.hazeaihub.handler.JsonTypeHandler.class)
+    @TableField(value = "metadata_json", typeHandler = top.hazenix.hazeaihub.handler.JsonTypeHandler.class, jdbcType = JdbcType.OTHER)
     private Map<String, Object> metadataJson;
 
     @Schema(description = "创建时间")
