@@ -1,8 +1,10 @@
 package top.hazenix.hazeaihub.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +23,7 @@ public class ChatMessage {
     private Long id;
 
     @Schema(description = "会话id[外键]")
-    @NotBlank(message = "所属会话ID不能为空")
+    @NotNull(message = "所属会话ID不能为空")
     private Long sessionId;
 
     @Schema(description = "消息角色(类型)[U/A/system]")
@@ -34,6 +36,7 @@ public class ChatMessage {
     private Boolean status;
 
     @Schema(description = "扩展信息[模型名、token统计、thinking片段汇总、解析到的原谅值等]")
+    @TableField(typeHandler = top.hazenix.hazeaihub.handler.JsonTypeHandler.class)
     private Map<String, Object> metadataJson;
 
     @Schema(description = "创建时间")

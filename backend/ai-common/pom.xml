@@ -52,7 +52,7 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!--knife4j for Spring Boot 3.x-->
+        <!--knife4j for Spring Boot 3.x (已包含 springdoc-openapi)-->
         <dependency>
             <groupId>com.github.xiaoymin</groupId>
             <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
@@ -64,6 +64,12 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>3.5.7</version>
+        </dependency>
+
+        <!-- PostgreSQL Driver -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
         </dependency>
 
     </dependencies>

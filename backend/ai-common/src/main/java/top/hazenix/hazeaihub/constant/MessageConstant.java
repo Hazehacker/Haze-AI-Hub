@@ -57,4 +57,5 @@ public class MessageConstant {
     public static final String LRC_ONLY = "仅支持.lrc文件";
     public static final String NO_AUTH_EDIT = "没有权限编辑这首歌的歌词";
     public static final String FILE_READ_ERROR = "读取歌词文件失败";
+    public static final String SESSION_NOT_FOUND = "会话不存在";
 }

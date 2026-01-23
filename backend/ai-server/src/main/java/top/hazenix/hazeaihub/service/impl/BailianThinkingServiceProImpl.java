@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
+import top.hazenix.hazeaihub.constant.MessageConstant;
+import top.hazenix.hazeaihub.constant.RoleConstant;
+import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.entity.ChatMessage;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.mapper.ChatMessageMapper;
@@ -100,10 +103,10 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                         for (ChatMessage msg : historyMessages) {
                             Map<String, String> msgMap = new HashMap<>();
                             if ("user".equals(msg.getRole())) {
-                                msgMap.put("role", "user");
+                                msgMap.put("role", RoleConstant.USER);
                                 msgMap.put("content", msg.getContent());
                             } else if ("assistant".equals(msg.getRole())) {
-                                msgMap.put("role", "assistant");
+                                msgMap.put("role", RoleConstant.ASSISTANT);
                                 msgMap.put("content", msg.getContent());
                             }
                             if (!msgMap.isEmpty()) {
@@ -119,7 +122,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
         
         // 添加当前用户消息
         Map<String, String> currentMessage = new HashMap<>();
-        currentMessage.put("role", "user");
+        currentMessage.put("role", RoleConstant.USER);
         currentMessage.put("content", userMessage);
         messages.add(currentMessage);
         
@@ -204,6 +207,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                                                  thinkingContent.toString(), enableThinking, thinkingBudget);
                         } catch (Exception e) {
                             log.error("保存会话历史失败: {}", e.getMessage(), e);
+                            throw e; // 重新抛出异常，让事务正常回滚
                         }
                     }
                 })
@@ -231,77 +235,57 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
     protected void saveMessagesToDatabase(Long sessionId, String userMessage, 
                                          String assistantResponse, String thinkingContent,
                                          Boolean enableThinking, Integer thinkingBudget) {
-        try {
-            // 如果 sessionId 为空，需要创建新会话
-            // 注意：这里需要 userId，可能需要从安全上下文获取或作为参数传入
-            // 暂时先使用 sessionId，如果不存在则创建
-            ChatSession session = null;
-            if (sessionId != null) {
-                session = chatSessionMapper.selectById(sessionId);
-            }
-            
-            // 如果会话不存在，创建新会话
-            // TODO: 需要从安全上下文获取 userId，这里暂时使用默认值或抛出异常
-            if (session == null) {
-                log.warn("会话不存在，无法保存消息。需要先创建会话或提供有效的 sessionId");
-                // 可以选择创建新会话，但需要 userId
-                // session = ChatSession.builder()
-                //         .userId(userId) // 需要从安全上下文获取
-                //         .type("chat")
-                //         .status(true)
-                //         .lastActiveAt(LocalDateTime.now())
-                //         .createdAt(LocalDateTime.now())
-                //         .updatedAt(LocalDateTime.now())
-                //         .build();
-                // chatSessionMapper.insert(session);
-                // sessionId = session.getId();
-                return;
-            }
-            
-            // 更新会话的最后活跃时间
-            session.setLastActiveAt(LocalDateTime.now());
-            session.setUpdatedAt(LocalDateTime.now());
-            chatSessionMapper.updateById(session);
-            
-            LocalDateTime now = LocalDateTime.now();
-            
-            // 保存用户消息
-            ChatMessage userMsg = ChatMessage.builder()
-                    .sessionId(sessionId)
-                    .role("user")
-                    .content(userMessage)
-                    .createdAt(now)
-                    .build();
-            chatMessageMapper.insert(userMsg);
-            
-            // 构建 metadataJson，包含思考过程相关信息
-            Map<String, Object> metadata = new HashMap<>();
-            if (enableThinking != null && enableThinking) {
-                metadata.put("enable_thinking", true);
-                if (thinkingBudget != null) {
-                    metadata.put("thinking_budget", thinkingBudget);
-                }
-                if (thinkingContent != null && !thinkingContent.isEmpty()) {
-                    metadata.put("thinking_content", thinkingContent);
-                }
-            }
-            metadata.put("model", model);
-            
-            // 保存AI回复
-            ChatMessage assistantMsg = ChatMessage.builder()
-                    .sessionId(sessionId)
-                    .role("assistant")
-                    .content(assistantResponse)
-                    .metadataJson(metadata.isEmpty() ? null : metadata)
-                    .createdAt(now)
-                    .build();
-            chatMessageMapper.insert(assistantMsg);
-            
-            log.debug("成功保存消息到数据库，会话ID: {}", sessionId);
-        } catch (Exception e) {
-            log.error("保存消息到数据库失败: {}", e.getMessage(), e);
-            throw e;
+        // 如果 sessionId 为空，需要创建新会话
+        ChatSession session = null;
+        if (sessionId != null) {
+            session = chatSessionMapper.selectById(sessionId);
         }
+
+        // 如果会话不存在，抛出异常
+        if (session == null) {
+            throw new RuntimeException(MessageConstant.SESSION_NOT_FOUND);
+        }
+
+        // 更新会话的最后活跃时间
+        session.setLastActiveAt(LocalDateTime.now());
+        chatSessionMapper.updateById(session);
+
+        // 保存用户消息
+        ChatMessage userMsg = ChatMessage.builder()
+                .sessionId(sessionId)
+                .role(RoleConstant.USER)
+                .content(userMessage)
+                .status(true)
+                .createdAt(LocalDateTime.now())
+                .build();
+        chatMessageMapper.insert(userMsg);
+
+        // 构建 metadataJson，包含思考过程相关信息
+        Map<String, Object> metadata = new HashMap<>();
+        if (enableThinking != null && enableThinking) {
+            metadata.put("enable_thinking", true);
+            if (thinkingBudget != null) {
+                metadata.put("thinking_budget", thinkingBudget);
+            }
+            if (thinkingContent != null && !thinkingContent.isEmpty()) {
+                metadata.put("thinking_content", thinkingContent);
+            }
+        }
+        metadata.put("model", model);
+
+        // 保存AI回复
+        ChatMessage assistantMsg = ChatMessage.builder()
+                .sessionId(sessionId)
+                .role(RoleConstant.ASSISTANT)
+                .content(assistantResponse)
+                .metadataJson(metadata.isEmpty() ? null : metadata)
+                .status(true)
+                .createdAt(LocalDateTime.now())
+                .build();
+        chatMessageMapper.insert(assistantMsg);
+
+        log.debug("成功保存消息到数据库，会话ID: {}", sessionId);
+
     }
 
     /**

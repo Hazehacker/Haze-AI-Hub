@@ -38,14 +38,15 @@ mybatis-plus:
 springdoc:
   api-docs:
     enabled: true
-    path: /v3/api-docs
+    path: /v1/api-docs
   swagger-ui:
     enabled: true
     path: /swagger-ui.html
-  default-flat-param-object: true
+  default-flat-param-object: false
 
 knife4j:
   enable: true
+  production: false
   setting:
     language: zh-cn
     enable-swagger-models: true

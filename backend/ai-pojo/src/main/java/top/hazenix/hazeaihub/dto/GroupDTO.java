@@ -4,6 +4,7 @@ package top.hazenix.hazeaihub.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +23,7 @@ public class GroupDTO {
     private Long id;
 
     @Schema(description = "用户id", example = "1")
-    @NotBlank(message = "用户ID不能为空")
+    @NotNull(message = "用户ID不能为空")
     private Long userId;
 
     @Schema(description = "分组名称", example = "测试分组")
