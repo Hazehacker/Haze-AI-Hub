@@ -13,7 +13,13 @@
           <span class="error-title">连接失败</span>
         </div>
         <div class="error-message">{{ message.content }}</div>
-        <div class="error-hint">请检查网络连接后重试，或稍后再试</div>
+        <div class="error-actions">
+          <button class="retry-button" @click="handleRetry">
+            <ArrowPathIcon class="retry-icon" />
+            <span>重试</span>
+          </button>
+          <span class="error-hint">或检查网络连接后重试</span>
+        </div>
       </div>
       
       <!-- 思考过程展示区域 -->
@@ -60,6 +66,7 @@ import { computed, onMounted, nextTick, ref, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { UserCircleIcon, ComputerDesktopIcon, DocumentDuplicateIcon, CheckIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon } from '@heroicons/vue/24/solid'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 
@@ -124,7 +131,7 @@ const toggleThinking = () => {
 
 // 配置 marked
 marked.setOptions({
-  breaks: true,
+  breaks: false,  // 不要把单个换行转成<br>
   gfm: true,
   sanitize: false
 })
@@ -310,6 +317,12 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['retry'])
+
+const handleRetry = () => {
+  emit('retry')
+}
+
 const isUser = computed(() => props.message.role === 'user')
 const isError = computed(() => props.message.role === 'error' || props.message.type === 'error')
 
@@ -362,8 +375,9 @@ const formatTime = (timestamp) => {
 <style scoped lang="scss">
 .message {
   display: flex;
-  margin-bottom: 1.5rem;
-  gap: 1rem;
+  margin-bottom: 1rem;
+  gap: 0.75rem;
+  animation: fadeIn 0.3s ease;
 
   &.message-user {
     flex-direction: row-reverse;
@@ -400,13 +414,49 @@ const formatTime = (timestamp) => {
           color: #991b1b;
           font-size: 0.875rem;
           line-height: 1.5;
-          margin-bottom: 0.5rem;
+          margin-bottom: 0.75rem;
         }
         
-        .error-hint {
-          color: #7f1d1d;
-          font-size: 0.75rem;
-          opacity: 0.8;
+        .error-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          
+          .retry-button {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 1rem;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            
+            &:hover {
+              background: #b91c1c;
+              transform: translateY(-1px);
+              box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+            }
+            
+            &:active {
+              transform: translateY(0);
+            }
+            
+            .retry-icon {
+              width: 16px;
+              height: 16px;
+            }
+          }
+          
+          .error-hint {
+            color: #7f1d1d;
+            font-size: 0.75rem;
+            opacity: 0.8;
+          }
         }
       }
       
@@ -414,9 +464,10 @@ const formatTime = (timestamp) => {
         position: relative;
         
         .text {
-          background: #f0f7ff; // 浅色背景
-          color: #333;
+          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+          color: #1e293b;
           border-radius: 1rem 1rem 0 1rem;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
         }
         
         .user-copy-button {
@@ -638,11 +689,12 @@ const formatTime = (timestamp) => {
     }
 
     .text {
-      padding: 1rem;
+      padding: 0.75rem 1rem;
       border-radius: 1rem 1rem 1rem 0;
-      line-height: 1.5;
+      line-height: 1.5;  // 减少行高从1.6到1.5
       white-space: pre-wrap;
       color: var(--text-color);
+      font-size: 0.95rem;
 
       .cursor {
         animation: blink 1s infinite;
@@ -650,18 +702,19 @@ const formatTime = (timestamp) => {
 
       :deep(pre) {
         background: #f6f8fa;
-        padding: 1rem;
+        padding: 0.875rem;
         border-radius: 0.5rem;
         overflow-x: auto;
-        margin: 0.5rem 0;
+        margin: 0;
         border: 1px solid #e1e4e8;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 
         code {
           background: transparent;
           padding: 0;
-          font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
-          font-size: 0.9rem;
-          line-height: 1.5;
+          font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+          font-size: 0.9375rem;
+          line-height: 1.6;
           tab-size: 2;
         }
       }
@@ -777,6 +830,18 @@ const formatTime = (timestamp) => {
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -819,8 +884,20 @@ const formatTime = (timestamp) => {
           color: #fecaca;
         }
         
-        .error-hint {
-          color: #fee2e2;
+        .error-actions {
+          .retry-button {
+            background: #fca5a5;
+            color: #7f1d1d;
+            
+            &:hover {
+              background: #fecaca;
+              box-shadow: 0 2px 4px rgba(252, 165, 165, 0.3);
+            }
+          }
+          
+          .error-hint {
+            color: #fee2e2;
+          }
         }
       }
     }
@@ -839,8 +916,9 @@ const formatTime = (timestamp) => {
     &.message-user {
       .content .text-container {
         .text {
-          background: #1a365d; // 暗色模式下的浅蓝色背景
+          background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
           color: #fff;
+          box-shadow: 0 2px 8px rgba(30, 58, 138, 0.3);
         }
         
         .user-copy-button {
@@ -1018,35 +1096,76 @@ const formatTime = (timestamp) => {
 
 .markdown-content {
   :deep(p) {
-    margin: 0.5rem 0;
-
-    &:first-child {
-      margin-top: 0;
-    }
+    margin: 0 0 0.5em 0;
+    line-height: 1.5;
 
     &:last-child {
       margin-bottom: 0;
     }
   }
+  
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4), :deep(h5), :deep(h6) {
+    margin: 0.8em 0 0.4em 0;
+    font-weight: 600;
+    line-height: 1.25;
+    
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+  
+  :deep(h1) { font-size: 1.5rem; }
+  :deep(h2) { font-size: 1.3rem; }
+  :deep(h3) { font-size: 1.15rem; }
+  :deep(h4) { font-size: 1.05rem; }
+  
+  :deep(strong) {
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+  
+  :deep(hr) {
+    margin: 0.5rem 0;
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    opacity: 0.6;
+  }
+  
+  // 支持emoji和图标的样式
+  :deep(.emoji) {
+    font-size: 1.1em;
+    vertical-align: middle;
+  }
 
   :deep(ul),
   :deep(ol) {
-    margin: 0.5rem 0;
-
-    padding-left: 1.5rem;
+    margin: 0.25em 0;
+    padding-left: 1.5em;
   }
 
   :deep(li) {
-    margin: 0.25rem 0;
-
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+    
+    &::marker {
+      color: #007CF0;
+    }
+    
+    p {
+      margin: 0;
+    }
   }
 
   :deep(code) {
-    background: rgba(0, 0, 0, 0.05);
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-size: 0.9em;
-    font-family: ui-monospace, monospace;
+    background: rgba(0, 124, 240, 0.08);
+    padding: 0.25em 0.5em;
+    border-radius: 0.375rem;
+    font-size: 0.9375em;
+    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+    color: #0066cc;
+    font-weight: 500;
+    border: 1px solid rgba(0, 124, 240, 0.15);
   }
 
   :deep(pre code) {
@@ -1058,24 +1177,48 @@ const formatTime = (timestamp) => {
     border-collapse: collapse;
     margin: 0.5rem 0;
     width: 100%;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 0.95rem;
   }
 
   :deep(th),
   :deep(td) {
-    border: 1px solid #ddd;
-    padding: 0.5rem;
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem 0.75rem;
     text-align: left;
+    line-height: 1.5;
   }
 
   :deep(th) {
-    background: rgba(0, 0, 0, 0.05);
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    font-weight: 600;
+    color: #1e293b;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  
+  :deep(tbody tr) {
+    transition: background-color 0.2s;
+    
+    &:hover {
+      background-color: rgba(0, 124, 240, 0.03);
+    }
+    
+    &:nth-child(even) {
+      background-color: rgba(0, 0, 0, 0.02);
+    }
   }
 
   :deep(blockquote) {
-    margin: 0.5rem 0;
-    padding-left: 1rem;
-    border-left: 4px solid #ddd;
-    color: #666;
+    margin: 0.5em 0;
+    padding: 0.4em 0.8em;
+    border-left: 3px solid #007CF0;
+    background: linear-gradient(90deg, rgba(0, 124, 240, 0.05) 0%, transparent 100%);
+    border-radius: 0 0.375rem 0.375rem 0;
+    color: #475569;
+    font-style: italic;
+    line-height: 1.5;
   }
 
   :deep(.thinking-section) {

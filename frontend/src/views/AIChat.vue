@@ -56,12 +56,31 @@
       
       <div class="chat-main">
         <div class="messages" ref="messagesRef">
-          <ChatMessage
-            v-for="(message, index) in currentMessages"
-            :key="index"
-            :message="message"
-            :is-stream="isStreaming && index === currentMessages.length - 1"
-          />
+          <!-- 加载动画 - 只在没有内容时显示 -->
+          <template v-for="(message, index) in currentMessages" :key="index">
+            <ChatMessage
+              v-if="message.content || message.role !== 'assistant' || !isStreaming"
+              :message="message"
+              :is-stream="isStreaming && index === currentMessages.length - 1"
+              @retry="retryMessage(index)"
+            />
+            
+            <!-- 加载动画 - 替代空的助手消息 -->
+            <div v-else-if="message.role === 'assistant' && !message.content && isStreaming" class="loading-message">
+              <div class="avatar">
+                <ComputerDesktopIcon class="icon assistant" />
+              </div>
+              <div class="loading-content">
+                <div class="wave-container">
+                  <div class="wave"></div>
+                  <div class="wave"></div>
+                  <div class="wave"></div>
+                  <div class="wave"></div>
+                  <div class="wave"></div>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
         
         <div class="input-area">
@@ -137,7 +156,8 @@ import {
   DocumentIcon,
   XMarkIcon,
   PencilIcon,
-  TrashIcon
+  TrashIcon,
+  ComputerDesktopIcon
 } from '@heroicons/vue/24/outline'
 import ChatMessage from '../components/ChatMessage.vue'
 import GroupDialog from '../components/GroupDialog.vue'
@@ -319,12 +339,14 @@ const sendMessage = async () => {
   if (!userInput.value.trim() && !selectedFiles.value.length) return
   
   const messageContent = userInput.value.trim()
+  const messagesToSend = selectedFiles.value.slice() // 保存文件引用
   
   // 添加用户消息
   const userMessage = {
     role: 'user',
     content: messageContent,
-    timestamp: new Date()
+    timestamp: new Date(),
+    files: messagesToSend // 保存文件信息用于重试
   }
   currentMessages.value.push(userMessage)
   
@@ -338,7 +360,7 @@ const sendMessage = async () => {
   if (messageContent) {
     formData.append('prompt', messageContent)
   }
-  selectedFiles.value.forEach(file => {
+  messagesToSend.forEach(file => {
     formData.append('files', file)
   })
   
@@ -417,6 +439,98 @@ const sendMessage = async () => {
     isStreaming.value = false
     selectedFiles.value = [] // 清空已选文件
     fileInput.value.value = '' // 清空文件输入
+    await scrollToBottom()
+  }
+}
+
+// 重试消息
+const retryMessage = async (messageIndex) => {
+  // 找到对应的用户消息
+  const userMessage = currentMessages.value[messageIndex - 1]
+  if (!userMessage || userMessage.role !== 'user') return
+  
+  // 移除错误消息
+  currentMessages.value.splice(messageIndex, 1)
+  
+  // 准备重新发送
+  const formData = new FormData()
+  if (userMessage.content) {
+    formData.append('prompt', userMessage.content)
+  }
+  if (userMessage.files) {
+    userMessage.files.forEach(file => {
+      formData.append('files', file)
+    })
+  }
+  
+  // 添加新的助手消息占位
+  const assistantMessage = {
+    role: 'assistant',
+    content: '',
+    timestamp: new Date()
+  }
+  currentMessages.value.push(assistantMessage)
+  isStreaming.value = true
+  
+  try {
+    const reader = await chatAPI.sendMessage(formData, currentChatId.value)
+    const decoder = new TextDecoder('utf-8')
+    let accumulatedContent = ''
+    let hasError = false
+    
+    while (true) {
+      try {
+        const { value, done } = await reader.read()
+        if (done) break
+        
+        const newContent = decoder.decode(value)
+        
+        if (newContent.includes('"type":"error"')) {
+          hasError = true
+          try {
+            const errorMatch = newContent.match(/"content":"([^"]+)"/)
+            if (errorMatch && errorMatch[1]) {
+              accumulatedContent = errorMatch[1]
+              assistantMessage.role = 'error'
+              assistantMessage.type = 'error'
+            }
+          } catch (e) {
+            accumulatedContent = '服务暂时不可用，请稍后重试'
+            assistantMessage.role = 'error'
+            assistantMessage.type = 'error'
+          }
+          break
+        }
+        
+        accumulatedContent += newContent
+        
+        await nextTick(() => {
+          const updatedMessage = {
+            ...assistantMessage,
+            content: accumulatedContent
+          }
+          const lastIndex = currentMessages.value.length - 1
+          currentMessages.value.splice(lastIndex, 1, updatedMessage)
+        })
+        await scrollToBottom()
+      } catch (readError) {
+        console.error('读取流错误:', readError)
+        break
+      }
+    }
+    
+    if (hasError) {
+      const lastIndex = currentMessages.value.length - 1
+      currentMessages.value[lastIndex].role = 'error'
+      currentMessages.value[lastIndex].type = 'error'
+    }
+  } catch (error) {
+    console.error('重试发送消息失败:', error)
+    assistantMessage.content = '网络连接失败，请检查网络后重试'
+    assistantMessage.role = 'error'
+    assistantMessage.type = 'error'
+  } finally {
+    isStreaming.value = false
     await scrollToBottom()
   }
 }
@@ -805,6 +919,79 @@ const handleGroupConfirm = async (name, icon) => {
       flex: 1;
       overflow-y: auto;  // 只允许消息区域滚动
       padding: 2rem;
+      
+      .loading-message {
+        display: flex;
+        margin-bottom: 1.5rem;
+        gap: 1rem;
+        animation: fadeIn 0.3s ease;
+        
+        .avatar {
+          width: 40px;
+          height: 40px;
+          flex-shrink: 0;
+          
+          .icon {
+            width: 100%;
+            height: 100%;
+            color: #333;
+            background: #f0f0f0;
+            padding: 4px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            
+            &.assistant {
+              animation: pulse 2s ease-in-out infinite;
+            }
+          }
+        }
+        
+        .loading-content {
+          display: flex;
+          align-items: center;
+          padding: 0.75rem 1rem;
+          background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+          border: 1px solid #bae6fd;
+          border-radius: 1rem 1rem 1rem 0;
+          box-shadow: 0 2px 8px rgba(14, 165, 233, 0.08);
+          
+          .wave-container {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            height: 20px;
+            
+            .wave {
+              width: 3px;
+              height: 100%;
+              background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+              border-radius: 1.5px;
+              animation: wave 1.2s ease-in-out infinite;
+              transform-origin: center;
+              
+              &:nth-child(1) {
+                animation-delay: 0s;
+              }
+              
+              &:nth-child(2) {
+                animation-delay: 0.1s;
+              }
+              
+              &:nth-child(3) {
+                animation-delay: 0.2s;
+              }
+              
+              &:nth-child(4) {
+                animation-delay: 0.3s;
+              }
+              
+              &:nth-child(5) {
+                animation-delay: 0.4s;
+              }
+            }
+          }
+        }
+      }
     }
     
     .input-area {
@@ -1049,6 +1236,25 @@ const handleGroupConfirm = async (name, icon) => {
     background: rgba(40, 40, 40, 0.95);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
     
+    .messages {
+      .loading-message {
+        .avatar .icon {
+          color: #fff;
+          background: #444;
+        }
+        
+        .loading-content {
+          background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+          border-color: #3d5a7f;
+          box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
+          
+          .wave-container .wave {
+            background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%);
+          }
+        }
+      }
+    }
+    
     .input-area {
       background: rgba(30, 30, 30, 0.98);
       border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -1166,4 +1372,35 @@ const handleGroupConfirm = async (name, icon) => {
     }
   }
 }
-</style> 
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+</style>
