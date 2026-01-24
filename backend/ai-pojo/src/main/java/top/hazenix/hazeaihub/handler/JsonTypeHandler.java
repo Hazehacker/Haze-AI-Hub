@@ -3,6 +3,7 @@ package top.hazenix.hazeaihub.handler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
@@ -21,8 +22,14 @@ import java.util.Map;
 @MappedJdbcTypes(JdbcType.OTHER)
 public class JsonTypeHandler extends BaseTypeHandler<Map<String, Object>> {
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper objectMapper;
     private static final TypeReference<Map<String, Object>> TYPE_REFERENCE = new TypeReference<Map<String, Object>>() {};
+
+    static {
+        objectMapper = new ObjectMapper();
+        // 注册JavaTimeModule以支持Java 8日期时间类型（如Duration）
+        objectMapper.registerModule(new JavaTimeModule());
+    }
 
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, Map<String, Object> parameter, JdbcType jdbcType) throws SQLException {

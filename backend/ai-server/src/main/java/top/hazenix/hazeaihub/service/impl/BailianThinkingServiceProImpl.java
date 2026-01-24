@@ -24,13 +24,17 @@ import top.hazenix.hazeaihub.mapper.ChatSessionMapper;
 import top.hazenix.hazeaihub.service.IBailianThinkingService;
 
 import java.net.ConnectException;
+import java.net.SocketException;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @description: 支持思考过程的聊天服务（Pro版本）- 使用 PostgreSQL 持久化存储会话数据和消息数据
@@ -97,12 +101,12 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                 
                 if (sessionIdLong != null) {
                     // 从数据库获取历史消息（最近5条）
-                    List<ChatMessage> historyMessages = chatMessageMapper.selectBySessionIdOrderByCreatedAt(sessionIdLong, 5);
+                    List<ChatMessage> historyMessages = chatMessageMapper.selectBySessionIdOrderByCreatedAt(sessionIdLong, 6);
                     if (historyMessages != null && !historyMessages.isEmpty()) {
                         // 将历史消息转换为 API 格式
                         for (ChatMessage msg : historyMessages) {
                             Map<String, String> msgMap = new HashMap<>();
-                            if ("user".equals(msg.getRole())) {
+                            if (RoleConstant.USER.equals(msg.getRole())) {
                                 msgMap.put("role", RoleConstant.USER);
                                 msgMap.put("content", msg.getContent());
                             } else if ("assistant".equals(msg.getRole())) {
@@ -147,8 +151,15 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
         
         // 保存最终会话ID（可能需要在流式响应中创建新会话）
         final Long finalSessionId = sessionIdLong;
+        final LocalDateTime[] startTime = {LocalDateTime.now()};
+        final LocalDateTime[] endTime = {null};
+        final Boolean[] flag = {false};// 标志一下是否结束思考，进入了回答
         
-        return webClient.post()
+        // 添加重试计数器
+        final AtomicInteger retryCount = new AtomicInteger(0);
+        final int maxRetries = 2;
+        
+        return Flux.defer(() -> webClient.post()
                 .uri("/chat/completions")
                 .header("Authorization", "Bearer " + apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -192,6 +203,10 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                         String content = result.get("content");
                         if (content != null) {
                             if ("answer".equals(type)) {
+                                if(!flag[0]){
+                                    flag[0] = true;
+                                    endTime[0] = LocalDateTime.now();
+                                }
                                 assistantResponse.append(content);
                             } else if ("thinking".equals(type)) {
                                 thinkingContent.append(content);
@@ -204,7 +219,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                     if (assistantResponse.length() > 0) {
                         try {
                             saveMessagesToDatabase(finalSessionId, userMessage, assistantResponse.toString(), 
-                                                 thinkingContent.toString(), enableThinking, thinkingBudget);
+                                                 thinkingContent.toString(), enableThinking, thinkingBudget, Duration.between(startTime[0], endTime[0]));
                         } catch (Exception e) {
                             log.error("保存会话历史失败: {}", e.getMessage(), e);
                             throw e; // 重新抛出异常，让事务正常回滚
@@ -212,14 +227,37 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                     }
                 })
                 .doOnError(error -> {
+                    int currentRetry = retryCount.get();
                     if (error instanceof UnresolvedAddressException) {
-                        log.error("DNS 解析失败，无法连接到 dashscope.aliyuncs.com。请检查：1) 网络连接 2) DNS 配置 3) 是否需要代理", error);
+                        log.error("DNS 解析失败，无法连接到 dashscope.aliyuncs.com。请检查：1) 网络连接 2) DNS 配置 3) 是否需要代理 (重试次数: {}/{})", currentRetry, maxRetries, error);
                     } else if (error instanceof ConnectException) {
-                        log.error("连接失败，无法连接到 dashscope.aliyuncs.com。请检查：1) 网络连接 2) 防火墙设置 3) 代理配置", error);
+                        log.error("连接失败，无法连接到 dashscope.aliyuncs.com。请检查：1) 网络连接 2) 防火墙设置 3) 代理配置 (重试次数: {}/{})", currentRetry, maxRetries, error);
+                    } else if (error instanceof SocketException) {
+                        log.error("网络连接被重置，可能是网络不稳定或服务端主动断开连接 (重试次数: {}/{})", currentRetry, maxRetries, error);
                     } else {
-                        log.error("调用百炼 API 出错: {}", error.getMessage(), error);
+                        log.error("调用百炼 API 出错: {} (重试次数: {}/{})", error.getMessage(), currentRetry, maxRetries, error);
                     }
-                });
+                })
+                // 添加重试逻辑：对于网络相关错误进行重试
+                .retry(maxRetries)
+                // 如果所有重试都失败，返回友好的错误消息
+                .onErrorResume(error -> {
+                    log.error("所有重试均失败，返回错误提示给用户", error);
+                    Map<String, String> errorResult = new HashMap<>();
+                    errorResult.put("type", "error");
+                    
+                    if (error instanceof SocketException || (error.getCause() != null && error.getCause() instanceof SocketException)) {
+                        errorResult.put("content", "网络连接不稳定，请检查网络后重试");
+                    } else if (error instanceof ConnectException) {
+                        errorResult.put("content", "无法连接到AI服务，请稍后重试");
+                    } else if (error instanceof UnresolvedAddressException) {
+                        errorResult.put("content", "网络DNS解析失败，请检查网络设置");
+                    } else {
+                        errorResult.put("content", "服务暂时不可用，请稍后重试");
+                    }
+                    
+                    return Flux.just(errorResult);
+                }));
     }
 
     /**
@@ -234,7 +272,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
     @Transactional
     protected void saveMessagesToDatabase(Long sessionId, String userMessage, 
                                          String assistantResponse, String thinkingContent,
-                                         Boolean enableThinking, Integer thinkingBudget) {
+                                         Boolean enableThinking, Integer thinkingBudget, Duration thinkingDuration) {
         // 如果 sessionId 为空，需要创建新会话
         ChatSession session = null;
         if (sessionId != null) {
@@ -269,6 +307,9 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
             }
             if (thinkingContent != null && !thinkingContent.isEmpty()) {
                 metadata.put("thinking_content", thinkingContent);
+            }
+            if (thinkingDuration != null) {
+                metadata.put("thinking_duration", thinkingDuration);
             }
         }
         metadata.put("model", model);
