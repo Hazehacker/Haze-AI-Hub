@@ -43,6 +43,7 @@ public class ChatSessionServiceServiceImpl implements IChatSessionService {
                 .type(type)
                 .title(title)
                 .status(true)
+                .isTop(false)
                 .lastActiveAt(now)
                 .createdAt(now)
                 .updatedAt(now)

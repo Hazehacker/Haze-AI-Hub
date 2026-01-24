@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.entity.ChatMessage;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.mapper.ChatMessageMapper;
@@ -82,5 +83,11 @@ public class HistoryServiceImpl implements IHistoryService {
         log.info("查询到会话 {} 的 {} 条消息记录", sessionId, messages.size());
         
         return messages;
+    }
+
+    @Override
+    public List<ChatSession> getLatestMessagesByUserId(Integer limit) {
+        List<ChatSession> sessionList = chatSessionMapper.list(BaseContext.getCurrentId(), limit);
+        return sessionList;
     }
 }

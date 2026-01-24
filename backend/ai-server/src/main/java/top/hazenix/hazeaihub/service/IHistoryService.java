@@ -1,6 +1,7 @@
 package top.hazenix.hazeaihub.service;
 
 import top.hazenix.hazeaihub.entity.ChatMessage;
+import top.hazenix.hazeaihub.entity.ChatSession;
 
 import java.util.List;
 
@@ -27,4 +28,11 @@ public interface IHistoryService {
      * @return 消息列表（按创建时间升序）
      */
     List<ChatMessage> getMessagesBySessionIdAndUserId(Long sessionId, Long userId);
+
+    /**
+     * 获取用户最新消息列表
+     * @param limit 返回数量限制
+     * @return 最新消息列表
+     */
+    List<ChatSession> getLatestMessagesByUserId(Integer limit);
 }

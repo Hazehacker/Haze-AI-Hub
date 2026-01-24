@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.entity.ChatMessage;
+import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.result.Result;
 import top.hazenix.hazeaihub.service.IHistoryService;
 
@@ -21,11 +22,12 @@ import java.util.List;
 @RequestMapping("/api/v1/ai/history")
 @RequiredArgsConstructor
 public class HistoryController {
-    
+
     private final IHistoryService historyService;
-    
+
     /**
      * 获取指定类型的会话历史列表
+     *
      * @param type 会话类型 (chat/pdf/game/service)
      * @return 会话ID列表（按最后活跃时间降序）
      */
@@ -36,7 +38,19 @@ public class HistoryController {
         return Result.success(sessionIds);
 
     }
-    
+
+    /**
+     * 获取指定ai对话的会话列表
+     * @param limit  返回消息数量限制
+     * @return 最新列表会话（按创建时间和是否置顶降序）
+     */
+    @GetMapping("/chat")
+    public Result getChatHistory(
+            @RequestParam(required = false, defaultValue = "100") Integer limit) {
+        List<ChatSession> sessionList = historyService.getLatestMessagesByUserId(limit);
+        return Result.success(sessionList);
+    }
+
     /**
      * 获取指定会话的消息历史
      * @param type 会话类型 (chat/pdf/game/service)

@@ -33,14 +33,8 @@ public class SessionController {
             @RequestParam Long userId,
             @RequestParam String type,
             @RequestParam(required = false) String title) {
-        
-        try {
-            ChatSession session = chatSessionService.createSession(userId, type, title);
-            return Result.success(session.getId());
-        } catch (Exception e) {
-            log.error("创建会话失败", e);
-            return Result.error("创建会话失败: " + e.getMessage());
-        }
+        ChatSession session = chatSessionService.createSession(userId, type, title);
+        return Result.success(session.getId());
     }
 
     /**

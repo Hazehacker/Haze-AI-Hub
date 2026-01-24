@@ -1,6 +1,7 @@
 package top.hazenix.hazeaihub.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -37,6 +38,10 @@ public class ChatSession {
 
     @Schema(description = "会话状态[true:正常 | false:已删除]")
     private Boolean status;
+
+    @Schema(description = "是否置顶[true:置顶 | false:不置顶]")
+    @TableField("is_top")
+    private Boolean isTop;
 
     @Schema(description = "最后活跃时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
