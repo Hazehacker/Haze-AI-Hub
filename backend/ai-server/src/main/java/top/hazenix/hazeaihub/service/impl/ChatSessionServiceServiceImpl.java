@@ -1,9 +1,12 @@
 package top.hazenix.hazeaihub.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import top.hazenix.hazeaihub.constant.MessageConstant;
+import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.mapper.ChatSessionMapper;
 import top.hazenix.hazeaihub.service.IChatSessionService;
@@ -50,5 +53,52 @@ public class ChatSessionServiceServiceImpl implements IChatSessionService {
         log.info("创建新会话成功，会话ID: {}, 用户ID: {}, 类型: {}", session.getId(), userId, type);
         
         return session;
+    }
+
+    @Override
+    public void updateSession(Long sessionId, String title, Long groupId) throws RuntimeException {
+        // 参数校验
+        if (sessionId == null || sessionId <= 0) {
+            throw new IllegalArgumentException(MessageConstant.ILLEGAL_SESSION_ID);
+        }
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException(MessageConstant.ILLEGAL_TITLE);
+        }
+        if (groupId == null || groupId <= 0) {
+            throw new IllegalArgumentException(MessageConstant.ILLEGAL_GROUP_ID);
+        }
+
+        // 身份校验
+        if (!BaseContext.getCurrentId().equals(chatSessionMapper.selectById(sessionId).getUserId())) {
+            throw new RuntimeException(MessageConstant.NOT_AUTHED_TO_DELETE);
+        }
+
+        LambdaUpdateWrapper<ChatSession> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(ChatSession::getId, sessionId);
+        updateWrapper.set(ChatSession::getUpdatedAt, LocalDateTime.now());
+        if(title != null) {
+            updateWrapper.set(ChatSession::getTitle, title);
+        }
+        if(groupId != null) {
+            updateWrapper.set(ChatSession::getGroupId, groupId);
+        }
+
+        chatSessionMapper.update(updateWrapper);
+
+    }
+
+    @Override
+    public void deleteSession(Long sessionId) {
+        // 参数校验
+        if (sessionId == null || sessionId <= 0) {
+            throw new IllegalArgumentException(MessageConstant.ILLEGAL_SESSION_ID);
+        }
+
+        // 身份校验
+        if (!BaseContext.getCurrentId().equals(chatSessionMapper.selectById(sessionId).getUserId())) {
+            throw new RuntimeException(MessageConstant.NOT_AUTHED_TO_DELETE);
+        }
+
+        chatSessionMapper.deleteById(sessionId);
     }
 }

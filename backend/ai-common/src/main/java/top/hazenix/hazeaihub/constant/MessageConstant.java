@@ -58,4 +58,8 @@ public class MessageConstant {
     public static final String NO_AUTH_EDIT = "没有权限编辑这首歌的歌词";
     public static final String FILE_READ_ERROR = "读取歌词文件失败";
     public static final String SESSION_NOT_FOUND = "会话不存在";
+    public static final String NOT_AUTHED_TO_DELETE = "无权限删除";
+    public static final String ILLEGAL_SESSION_ID = "会话ID不能为空且必须大于0";
+    public static final String ILLEGAL_TITLE = "会话标题不能为空";
+    public static final String ILLEGAL_GROUP_ID = "分组ID不能为空且必须大于0";
 }

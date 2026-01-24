@@ -31,15 +31,10 @@ public class HistoryController {
      */
     @GetMapping("/{type}")
     public Result<List<Long>> getChatHistory(@PathVariable String type) {
-        try {
-            Long userId = BaseContext.getCurrentId();
-            log.info("获取会话历史列表，用户ID: {}, 类型: {}", userId, type);
-            List<Long> sessionIds = historyService.getSessionIdsByTypeAndUserId(type, userId);
-            return Result.success(sessionIds);
-        } catch (Exception e) {
-            log.error("获取会话历史列表失败", e);
-            return Result.error("获取会话历史列表失败: " + e.getMessage());
-        }
+
+        List<Long> sessionIds = historyService.getSessionIdsByTypeAndUserId(type, BaseContext.getCurrentId());
+        return Result.success(sessionIds);
+
     }
     
     /**
