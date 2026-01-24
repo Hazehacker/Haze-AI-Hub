@@ -73,6 +73,19 @@ onUnmounted(() => {
 
 <template>
   <div class="app" :class="{ 'dark': isDark }">
+    <!-- 左上角返回主页按钮 -->
+    <button 
+      v-if="currentRoute !== '/'" 
+      @click="router.push('/')" 
+      class="home-btn-fixed"
+      title="返回主页"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+      </svg>
+      <span>主页</span>
+    </button>
+
     <nav class="navbar">
       <router-link to="/" class="logo">Haze AI Hub</router-link>
       <div class="nav-right">
@@ -134,6 +147,56 @@ body {
   flex-direction: column;
 }
 
+.home-btn-fixed {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(0, 124, 240, 0.95);
+  border: none;
+  border-radius: 2rem;
+  color: white;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 124, 240, 0.3);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+
+  &:hover {
+    background: rgba(0, 124, 240, 1);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 124, 240, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  span {
+    font-weight: 600;
+  }
+}
+
+.dark .home-btn-fixed {
+  background: rgba(0, 124, 240, 0.9);
+  box-shadow: 0 4px 12px rgba(0, 124, 240, 0.4);
+
+  &:hover {
+    background: rgba(0, 124, 240, 1);
+    box-shadow: 0 6px 16px rgba(0, 124, 240, 0.5);
+  }
+}
+
 .navbar {
   display: flex;
   justify-content: space-between;
@@ -154,6 +217,11 @@ body {
     background: linear-gradient(45deg, #007CF0, #00DFD8);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 0.8;
+    }
   }
 
   .theme-toggle {
@@ -232,8 +300,26 @@ body {
 }
 
 @media (max-width: 768px) {
+  .home-btn-fixed {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+
+    .icon {
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+
+    span {
+      display: none;
+    }
+  }
+
   .navbar {
     padding: 1rem;
+
+    .logo {
+      font-size: 1.25rem;
+    }
   }
 }
 </style>

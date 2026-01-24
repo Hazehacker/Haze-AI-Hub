@@ -3,7 +3,14 @@
     <div class="profile-container">
       <el-card class="profile-card">
         <template #header>
-          <h1 class="profile-title">个人中心</h1>
+          <div class="profile-header">
+            <button class="back-btn" @click="$router.go(-1)" title="返回上一页">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+              </svg>
+            </button>
+            <h1 class="profile-title">个人中心</h1>
+          </div>
         </template>
 
         <div v-if="loading" class="loading-wrapper">
@@ -158,6 +165,52 @@ onMounted(() => {
 
 .dark .profile-card {
   background: #2a2a2a;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.05);
+  border: none;
+  border-radius: 0.5rem;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(0, 124, 240, 0.1);
+    color: #007CF0;
+    transform: translateX(-2px);
+  }
+
+  &:active {
+    transform: translateX(0);
+  }
+
+  .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
+.dark .back-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: #999;
+
+  &:hover {
+    background: rgba(0, 124, 240, 0.15);
+    color: #60a5fa;
+  }
 }
 
 .profile-title {
