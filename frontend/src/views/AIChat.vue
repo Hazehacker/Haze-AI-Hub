@@ -355,6 +355,7 @@ const sendMessage = async () => {
     const reader = await chatAPI.sendMessage(formData, currentChatId.value)
     const decoder = new TextDecoder('utf-8')
     let accumulatedContent = ''  // 添加累积内容变量
+    let hasError = false  // 标记是否有错误
     
     while (true) {
       try {
@@ -362,7 +363,28 @@ const sendMessage = async () => {
         if (done) break
         
         // 累积新内容
-        accumulatedContent += decoder.decode(value)  // 追加新内容
+        const newContent = decoder.decode(value)
+        
+        // 检查是否是错误消息
+        if (newContent.includes('"type":"error"')) {
+          hasError = true
+          try {
+            // 尝试解析错误消息
+            const errorMatch = newContent.match(/"content":"([^"]+)"/)
+            if (errorMatch && errorMatch[1]) {
+              accumulatedContent = errorMatch[1]
+              assistantMessage.role = 'error'
+              assistantMessage.type = 'error'
+            }
+          } catch (e) {
+            accumulatedContent = '服务暂时不可用，请稍后重试'
+            assistantMessage.role = 'error'
+            assistantMessage.type = 'error'
+          }
+          break
+        }
+        
+        accumulatedContent += newContent  // 追加新内容
         
         await nextTick(() => {
           // 更新消息，使用累积的内容
@@ -379,9 +401,18 @@ const sendMessage = async () => {
         break
       }
     }
+    
+    // 如果有错误，确保消息被标记为错误类型
+    if (hasError) {
+      const lastIndex = currentMessages.value.length - 1
+      currentMessages.value[lastIndex].role = 'error'
+      currentMessages.value[lastIndex].type = 'error'
+    }
   } catch (error) {
     console.error('发送消息失败:', error)
-    assistantMessage.content = '抱歉，发生了错误，请稍后重试。'
+    assistantMessage.content = '网络连接失败，请检查网络后重试'
+    assistantMessage.role = 'error'
+    assistantMessage.type = 'error'
   } finally {
     isStreaming.value = false
     selectedFiles.value = [] // 清空已选文件

@@ -1,19 +1,30 @@
 <template>
-  <div class="message" :class="{ 'message-user': isUser }">
+  <div class="message" :class="{ 'message-user': isUser, 'message-error': isError }">
     <div class="avatar">
       <UserCircleIcon v-if="isUser" class="icon" />
+      <ExclamationTriangleIcon v-else-if="isError" class="icon error-icon" />
       <ComputerDesktopIcon v-else class="icon" :class="{ 'assistant': !isUser }" />
     </div>
     <div class="content">
+      <!-- 错误消息展示区域 -->
+      <div v-if="isError" class="error-section">
+        <div class="error-header">
+          <ExclamationTriangleIcon class="error-icon-large" />
+          <span class="error-title">连接失败</span>
+        </div>
+        <div class="error-message">{{ message.content }}</div>
+        <div class="error-hint">请检查网络连接后重试，或稍后再试</div>
+      </div>
+      
       <!-- 思考过程展示区域 -->
-      <div v-if="hasThinkingContent && !isUser" class="thinking-section">
+      <div v-else-if="hasThinkingContent && !isUser" class="thinking-section">
         <div class="thinking-header" @click="toggleThinking">
           <div class="thinking-title">
             <svg class="thinking-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
             <span>深度思考已完成</span>
-            <span class="thinking-time">(用时{{ thinkingTime }})</span>
+            <span v-if="thinkingTime" class="thinking-time">(用时{{ thinkingTime }})</span>
           </div>
           <svg class="expand-icon" :class="{ 'expanded': isThinkingExpanded }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -48,7 +59,7 @@
 import { computed, onMounted, nextTick, ref, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
-import { UserCircleIcon, ComputerDesktopIcon, DocumentDuplicateIcon, CheckIcon } from '@heroicons/vue/24/outline'
+import { UserCircleIcon, ComputerDesktopIcon, DocumentDuplicateIcon, CheckIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 
@@ -57,10 +68,28 @@ const copied = ref(false)
 const copyButtonTitle = computed(() => copied.value ? '已复制' : '复制内容')
 const isThinkingExpanded = ref(false)
 
-// 提取思考内容
+// 提取思考内容（从metadata或content中的think标签）
 const thinkingContent = computed(() => {
-  if (!props.message.metadata?.thinking_content) return ''
-  return props.message.metadata.thinking_content
+  // 优先从metadata中获取
+  if (props.message.metadata?.thinking_content) {
+    return props.message.metadata.thinking_content
+  }
+  
+  // 如果metadata中没有，尝试从content中提取think标签内容
+  const content = props.message.content || ''
+  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/)
+  if (thinkMatch && thinkMatch[1]) {
+    return thinkMatch[1].trim()
+  }
+  
+  return ''
+})
+
+// 获取不包含think标签的纯内容
+const pureContent = computed(() => {
+  const content = props.message.content || ''
+  // 移除think标签及其内容
+  return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 })
 
 // 检查是否有思考内容
@@ -68,10 +97,24 @@ const hasThinkingContent = computed(() => {
   return !!thinkingContent.value && thinkingContent.value.trim().length > 0
 })
 
-// 思考时间（模拟，实际可以从metadata中获取）
+// 思考时间（从metadata中获取）
 const thinkingTime = computed(() => {
-  // 可以从metadata中获取实际的思考时间
-  return '12秒'
+  const duration = props.message.metadata?.thinking_duration
+  if (!duration) return ''
+  
+  // 如果duration是数字（秒），格式化显示
+  if (typeof duration === 'number') {
+    if (duration < 60) {
+      return `${Math.round(duration)}秒`
+    } else {
+      const minutes = Math.floor(duration / 60)
+      const seconds = Math.round(duration % 60)
+      return `${minutes}分${seconds}秒`
+    }
+  }
+  
+  // 如果已经是字符串格式，直接返回
+  return duration
 })
 
 // 切换思考内容展开/收起
@@ -94,6 +137,7 @@ const processContent = (content) => {
   let result = ''
   let isInThinkBlock = false
   let currentBlock = ''
+  let thinkingBlocks = []
 
   // 逐字符分析，处理 think 标签
   for (let i = 0; i < content.length; i++) {
@@ -110,8 +154,20 @@ const processContent = (content) => {
 
     if (content.slice(i, i + 8) === '</think>') {
       isInThinkBlock = false
-      // 将 think 块包装在特殊 div 中
-      result += `<div class="think-block">${marked.parse(currentBlock)}</div>`
+      // 收集思考块内容
+      thinkingBlocks.push(currentBlock)
+      // 使用与完成后相同的样式
+      result += `<div class="thinking-section inline-thinking">
+        <div class="thinking-header">
+          <div class="thinking-title">
+            <svg class="thinking-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <span>深度思考中...</span>
+          </div>
+        </div>
+        <div class="thinking-content-inline">${currentBlock}</div>
+      </div>`
       currentBlock = ''
       i += 7 // 跳过 </think>
       continue
@@ -123,7 +179,19 @@ const processContent = (content) => {
   // 处理剩余内容
   if (currentBlock) {
     if (isInThinkBlock) {
-      result += `<div class="think-block">${marked.parse(currentBlock)}</div>`
+      thinkingBlocks.push(currentBlock)
+      // 使用与完成后相同的样式
+      result += `<div class="thinking-section inline-thinking">
+        <div class="thinking-header">
+          <div class="thinking-title">
+            <svg class="thinking-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <span>深度思考中...</span>
+          </div>
+        </div>
+        <div class="thinking-content-inline">${currentBlock}</div>
+      </div>`
     } else {
       result += marked.parse(currentBlock)
     }
@@ -131,8 +199,8 @@ const processContent = (content) => {
 
   // 净化处理后的 HTML
   const cleanHtml = DOMPurify.sanitize(result, {
-    ADD_TAGS: ['think', 'code', 'pre', 'span'],
-    ADD_ATTR: ['class', 'language']
+    ADD_TAGS: ['think', 'code', 'pre', 'span', 'svg', 'path'],
+    ADD_ATTR: ['class', 'language', 'viewBox', 'fill', 'stroke', 'stroke-linecap', 'stroke-linejoin', 'stroke-width', 'd', 'style']
   })
   
   // 在净化后的 HTML 中查找代码块并添加复制按钮
@@ -179,7 +247,9 @@ const processContent = (content) => {
 // 修改计算属性
 const processedContent = computed(() => {
   if (!props.message.content) return ''
-  return processContent(props.message.content)
+  // 如果有思考内容，使用纯内容（不包含think标签）
+  const contentToProcess = hasThinkingContent.value ? pureContent.value : props.message.content
+  return processContent(contentToProcess)
 })
 
 // 为代码块添加复制功能
@@ -241,6 +311,7 @@ const props = defineProps({
 })
 
 const isUser = computed(() => props.message.role === 'user')
+const isError = computed(() => props.message.role === 'error' || props.message.type === 'error')
 
 // 复制内容到剪贴板
 const copyContent = async () => {
@@ -300,6 +371,45 @@ const formatTime = (timestamp) => {
     .content {
       align-items: flex-end;
       
+      .error-section {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        border: 1px solid #fca5a5;
+        border-radius: 0.75rem;
+        padding: 1rem;
+        
+        .error-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+          
+          .error-icon-large {
+            width: 20px;
+            height: 20px;
+            color: #dc2626;
+          }
+          
+          .error-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #dc2626;
+          }
+        }
+        
+        .error-message {
+          color: #991b1b;
+          font-size: 0.875rem;
+          line-height: 1.5;
+          margin-bottom: 0.5rem;
+        }
+        
+        .error-hint {
+          color: #7f1d1d;
+          font-size: 0.75rem;
+          opacity: 0.8;
+        }
+      }
+      
       .text-container {
         position: relative;
         
@@ -347,6 +457,17 @@ const formatTime = (timestamp) => {
     }
   }
 
+  &.message-error {
+    .avatar .icon.error-icon {
+      color: #dc2626;
+      background: #fee2e2;
+      
+      &:hover {
+        background: #fecaca;
+      }
+    }
+  }
+
   .avatar {
     width: 40px;
     height: 40px;
@@ -369,6 +490,11 @@ const formatTime = (timestamp) => {
           transform: scale(1.05);
         }
       }
+      
+      &.error-icon {
+        color: #dc2626;
+        background: #fee2e2;
+      }
     }
   }
 
@@ -384,6 +510,22 @@ const formatTime = (timestamp) => {
       border-radius: 0.75rem;
       overflow: hidden;
       margin-bottom: 0.5rem;
+      
+      &.inline-thinking {
+        margin: 0.5rem 0;
+        
+        .thinking-header {
+          cursor: default;
+          
+          &:hover {
+            background-color: transparent;
+          }
+        }
+        
+        .expand-icon {
+          display: none;
+        }
+      }
       
       .thinking-header {
         display: flex;
@@ -432,7 +574,7 @@ const formatTime = (timestamp) => {
       }
       
       .thinking-content {
-        padding: 0 1rem 1rem 1rem;
+        padding: 0 1rem 0.75rem 1rem;
         animation: slideDown 0.3s ease;
         
         .thinking-text {
@@ -504,40 +646,6 @@ const formatTime = (timestamp) => {
 
       .cursor {
         animation: blink 1s infinite;
-      }
-
-      :deep(.think-block) {
-        position: relative;
-        padding: 0.75rem 1rem 0.75rem 1.5rem;
-        margin: 0.5rem 0;
-        color: #666;
-        font-style: italic;
-        border-left: 4px solid #ddd;
-        background-color: rgba(0, 0, 0, 0.03);
-        border-radius: 0 0.5rem 0.5rem 0;
-
-        // 添加平滑过渡效果
-        opacity: 1;
-        transform: translateX(0);
-        transition: opacity 0.3s ease, transform 0.3s ease;
-
-        &::before {
-          content: '思考';
-          position: absolute;
-          top: -0.75rem;
-          left: 1rem;
-          padding: 0 0.5rem;
-          font-size: 0.75rem;
-          background: #f5f5f5;
-          border-radius: 0.25rem;
-          color: #999;
-          font-style: normal;
-        }
-
-        // 添加进入动画
-        &:not(:first-child) {
-          animation: slideIn 0.3s ease forwards;
-        }
       }
 
       :deep(pre) {
@@ -669,8 +777,54 @@ const formatTime = (timestamp) => {
   }
 }
 
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
 .dark {
   .message {
+    &.message-error {
+      .avatar .icon.error-icon {
+        color: #f87171;
+        background: #7f1d1d;
+        
+        &:hover {
+          background: #991b1b;
+        }
+      }
+      
+      .content .error-section {
+        background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%);
+        border-color: #dc2626;
+        
+        .error-header {
+          .error-icon-large {
+            color: #fca5a5;
+          }
+          
+          .error-title {
+            color: #fca5a5;
+          }
+        }
+        
+        .error-message {
+          color: #fecaca;
+        }
+        
+        .error-hint {
+          color: #fee2e2;
+        }
+      }
+    }
+    
     .avatar .icon {
       &.assistant {
         color: #fff;
@@ -702,6 +856,48 @@ const formatTime = (timestamp) => {
     }
 
     .content {
+      .thinking-section {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+        border-color: #3d5a7f;
+        
+        &.inline-thinking {
+          .thinking-header {
+            &:hover {
+              background-color: transparent;
+            }
+          }
+        }
+        
+        .thinking-header {
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+          }
+          
+          .thinking-title {
+            color: #7dd3fc;
+            
+            .thinking-icon {
+              color: #38bdf8;
+            }
+            
+            .thinking-time {
+              color: #94a3b8;
+            }
+          }
+          
+          .expand-icon {
+            color: #7dd3fc;
+          }
+        }
+        
+        .thinking-content {
+          .thinking-text {
+            background: rgba(0, 0, 0, 0.3);
+            color: #cbd5e1;
+          }
+        }
+      }
+      
       .message-footer {
         .time {
           color: #999;
@@ -717,17 +913,6 @@ const formatTime = (timestamp) => {
       }
 
       .text {
-        :deep(.think-block) {
-          background-color: rgba(255, 255, 255, 0.03);
-          border-left-color: #666;
-          color: #999;
-
-          &::before {
-            background: #2a2a2a;
-            color: #888;
-          }
-        }
-
         :deep(pre) {
           background: #161b22;
           border-color: #30363d;
@@ -893,6 +1078,62 @@ const formatTime = (timestamp) => {
     color: #666;
   }
 
+  :deep(.thinking-section) {
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 1px solid #bae6fd;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    margin: 0.5rem 0;
+    
+    .thinking-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0.75rem;
+      cursor: default;
+      user-select: none;
+      
+      .thinking-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        color: #0369a1;
+        font-weight: 500;
+        
+        .thinking-icon {
+          width: 18px;
+          height: 18px;
+          color: #0284c7;
+        }
+      }
+    }
+    
+    .thinking-content {
+      padding: 0 1rem 0.75rem 1rem;
+      
+      .thinking-text {
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 0.5rem;
+        color: #334155;
+        font-size: 0.875rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+    }
+    
+    .thinking-content-inline {
+      padding: 0 1rem 0.75rem 1rem;
+      color: #334155;
+      font-size: 0.875rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+  }
+
   :deep(.code-block-wrapper) {
     position: relative;
     margin: 1rem 0;
@@ -998,6 +1239,32 @@ const formatTime = (timestamp) => {
     :deep(blockquote) {
       border-left-color: #444;
       color: #999;
+    }
+
+    :deep(.thinking-section) {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+      border-color: #3d5a7f;
+      
+      .thinking-header {
+        .thinking-title {
+          color: #7dd3fc;
+          
+          .thinking-icon {
+            color: #38bdf8;
+          }
+        }
+      }
+      
+      .thinking-content {
+        .thinking-text {
+          background: rgba(0, 0, 0, 0.3);
+          color: #cbd5e1;
+        }
+      }
+      
+      .thinking-content-inline {
+        color: #cbd5e1;
+      }
     }
   }
 }
