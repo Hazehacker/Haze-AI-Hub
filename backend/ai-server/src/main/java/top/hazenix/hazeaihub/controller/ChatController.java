@@ -38,49 +38,26 @@ public class ChatController {
     }
 
     /**
-     * 带思考过程的聊天接口（JSON 流式返回）
-     * 返回格式：每行一个 JSON 对象 （NDJSON）
-     *
-     * ```json
-     * {"type":"thinking","content":"首先分析问题..."}
-     * {"type":"thinking","content":"然后考虑..."}
-     * {"type":"answer","content":"根据分析，答案是..."}
-     * {"type":"answer","content":"..."}
-     * ```
-     * 
-     * @param prompt 用户输入
-     * @param chatId 会话ID，用于管理会话上下文（可选）
-     * @param enableThinking 是否启用思考过程（针对 qwen3-vl-plus 等模型，deepseek-r1 默认支持）
-     * @param thinkingBudget 思考过程的最大 token 数（可选，默认无限制）
-     */
-    @PostMapping(value = "/chat-with-thinking", produces = MediaType.APPLICATION_NDJSON_VALUE)
-    public Flux<Map<String, String>> chatWithThinking(
-            @RequestParam String prompt,
-            @RequestParam(required = false) String chatId,
-            @RequestParam(required = false) Boolean enableThinking,
-            @RequestParam(required = false) Integer thinkingBudget) {
-        return bailianThinkingService.chatWithThinking(prompt, enableThinking, thinkingBudget, chatId);
-    }
-
-    /**
-     * 带思考过程的聊天接口（纯文本流式返回）
+     * 带思考过程的聊天接口（纯文本流式返回）【该版本SpringAI不支持阿里云百炼的模型，所以要有思考过程，需要自己封装】
      * 返回格式：<think>思考内容</think>回答内容
      * 
      * @param prompt 用户输入
-     * @param chatId 会话ID，用于管理会话上下文（可选）
+     * @param sessionId 会话ID，用于管理会话上下文（可选）
      * @param enableThinking 是否启用思考过程
      * @param thinkingBudget 思考过程的最大 token 数
+     * @param model 模型名称（可选，默认使用配置文件中的模型）
      */
     @PostMapping(value = "/chat-with-thinking-text", produces = "text/html;charset=utf-8")
     public Flux<String> chatWithThinkingText(
             @RequestParam String prompt,
-            @RequestParam(required = false) String chatId,
+            @RequestParam(required = false) String sessionId,
             @RequestParam(required = false, defaultValue = "true") Boolean enableThinking,
-            @RequestParam(required = false) Integer thinkingBudget) {
+            @RequestParam(required = false) Integer thinkingBudget,
+            @RequestParam(required = false) String model) {
         
         AtomicBoolean thinkingStarted = new AtomicBoolean(false);
 
-        return bailianThinkingService.chatWithThinking(prompt, enableThinking, thinkingBudget, chatId)
+        return bailianThinkingService.chatWithThinking(prompt, enableThinking, thinkingBudget, sessionId, model)
                 .map(chunk -> {
                     String type = chunk.get("type");
                     String content = chunk.get("content");

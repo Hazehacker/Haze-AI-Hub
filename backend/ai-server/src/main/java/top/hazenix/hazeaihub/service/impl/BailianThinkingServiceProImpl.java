@@ -55,7 +55,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
     private String apiKey;
 
     @Value("${spring.ai.openai.chat.options.model:deepseek-r1}")
-    private String model;
+    private String model;// 默认模型
 
     public BailianThinkingServiceProImpl(WebClient.Builder webClientBuilder,
                                         ObjectMapper objectMapper,
@@ -76,25 +76,34 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
      * @param userMessage 用户消息
      * @param enableThinking 是否启用思考过程
      * @param thinkingBudget 思考过程的最大 token 数
-     * @param chatId 会话ID，用于获取和保存会话上下文（可选）
+     * @param sessionId 会话ID，用于获取和保存会话上下文（可选）
+     * @param modelName 模型名称（可选，如果为空则使用配置文件中的默认模型）
      */
     @Override
     public Flux<Map<String, String>> chatWithThinking(String userMessage,
                                                        Boolean enableThinking,
                                                        Integer thinkingBudget,
-                                                       String chatId) {
+                                                       String sessionId,
+                                                       String modelName) {
+        if(sessionId == null){
+            throw new IllegalArgumentException(MessageConstant.SESSION_NOT_FOUND);
+        }
+
+        // 使用传入的模型名称，如果为空则使用默认模型
+        String selectedModel = (modelName != null && !modelName.trim().isEmpty()) ? modelName : model;
+        
         // 构建消息列表，包含历史消息和当前用户消息
         List<Map<String, String>> messages = new ArrayList<>();
         Long sessionIdLong = null;
         
-        // 如果有 chatId，从数据库获取历史消息
-        if (chatId != null && !chatId.trim().isEmpty()) {
+        // 如果有 sessionId，从数据库获取历史消息
+        if (sessionId != null && !sessionId.trim().isEmpty()) {
             try {
-                // 尝试将 chatId 转换为 Long
+                // 尝试将 sessionId 转换为 Long
                 try {
-                    sessionIdLong = Long.parseLong(chatId);
+                    sessionIdLong = Long.parseLong(sessionId);
                 } catch (NumberFormatException e) {
-                    log.warn("chatId 无法转换为 Long，将创建新会话: {}", chatId);
+                    log.warn("sessionId 无法转换为 Long，将创建新会话: {}", sessionId);
                     // 如果无法转换，可能需要根据业务逻辑处理，这里先设为 null
                     sessionIdLong = null;
                 }
@@ -132,7 +141,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
         
         // 构建请求体
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", model);
+        requestBody.put("model", selectedModel);  // 使用选择的模型
         requestBody.put("stream", true);
         requestBody.put("messages", messages);
         
@@ -219,7 +228,8 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                     if (assistantResponse.length() > 0) {
                         try {
                             saveMessagesToDatabase(finalSessionId, userMessage, assistantResponse.toString(), 
-                                                 thinkingContent.toString(), enableThinking, thinkingBudget, Duration.between(startTime[0], endTime[0]));
+                                                 thinkingContent.toString(), enableThinking, thinkingBudget, 
+                                                 Duration.between(startTime[0], endTime[0]), selectedModel);
                         } catch (Exception e) {
                             log.error("保存会话历史失败: {}", e.getMessage(), e);
                             throw e; // 重新抛出异常，让事务正常回滚
@@ -268,11 +278,14 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
      * @param thinkingContent 思考过程内容
      * @param enableThinking 是否启用思考过程
      * @param thinkingBudget 思考预算
+     * @param thinkingDuration 思考时长
+     * @param selectedModel 使用的模型名称
      */
     @Transactional
     protected void saveMessagesToDatabase(Long sessionId, String userMessage, 
                                          String assistantResponse, String thinkingContent,
-                                         Boolean enableThinking, Integer thinkingBudget, Duration thinkingDuration) {
+                                         Boolean enableThinking, Integer thinkingBudget, 
+                                         Duration thinkingDuration, String selectedModel) {
         // 如果 sessionId 为空，需要创建新会话
         ChatSession session = null;
         if (sessionId != null) {
@@ -312,7 +325,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                 metadata.put("thinking_duration", thinkingDuration);
             }
         }
-        metadata.put("model", model);
+        metadata.put("model", selectedModel);  // 保存使用的模型名称
 
         // 保存AI回复
         ChatMessage assistantMsg = ChatMessage.builder()

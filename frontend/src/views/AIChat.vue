@@ -55,6 +55,39 @@
       </div>
       
       <div class="chat-main">
+        <!-- 模型选择器 -->
+        <div v-if="selectedModel" class="model-selector">
+          <div class="model-dropdown" @click="toggleModelDropdown">
+            <span class="model-name">{{ selectedModel.name }}</span>
+            <ChevronDownIcon class="icon" :class="{ 'rotate': showModelDropdown }" />
+          </div>
+          
+          <transition name="dropdown">
+            <div v-if="showModelDropdown" class="model-list">
+              <div class="model-category">
+                <div class="category-title">模型</div>
+                <div 
+                  v-for="model in availableModels" 
+                  :key="model.id"
+                  class="model-item"
+                  :class="{ 'active': selectedModel.id === model.id, 'recommended': model.recommended }"
+                  @click="selectModel(model)"
+                >
+                  <div class="model-info">
+                    <div class="model-header">
+                      <span class="model-title">{{ model.name }}</span>
+                      <span v-if="model.recommended" class="badge">推荐</span>
+                      <span v-if="model.beta" class="badge beta">Beta</span>
+                    </div>
+                    <div class="model-desc">{{ model.description }}</div>
+                  </div>
+                  <CheckIcon v-if="selectedModel.id === model.id" class="check-icon" />
+                </div>
+              </div>
+            </div>
+          </transition>
+        </div>
+        
         <div class="messages" ref="messagesRef">
           <!-- 加载动画 - 只在没有内容时显示 -->
           <template v-for="(message, index) in currentMessages" :key="index">
@@ -145,7 +178,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useDark } from '@vueuse/core'
 import { useUserStore } from '@/stores/user'
 import { 
@@ -157,7 +190,9 @@ import {
   XMarkIcon,
   PencilIcon,
   TrashIcon,
-  ComputerDesktopIcon
+  ComputerDesktopIcon,
+  ChevronDownIcon,
+  CheckIcon
 } from '@heroicons/vue/24/outline'
 import ChatMessage from '../components/ChatMessage.vue'
 import GroupDialog from '../components/GroupDialog.vue'
@@ -180,6 +215,17 @@ const selectedGroupId = ref(null)
 const showGroupDialog = ref(false)
 const editingGroup = ref(null)
 
+// 模型选择相关
+const showModelDropdown = ref(false)
+const availableModels = ref([])
+const selectedModel = ref({
+  id: 'default',
+  name: 'Qwen3-千问',
+  value: 'qwen-turbo',
+  description: '综合AI助手',
+  recommended: true
+})
+
 // 过滤聊天历史
 const filteredChatHistory = computed(() => {
   if (!selectedGroupId.value) {
@@ -188,6 +234,26 @@ const filteredChatHistory = computed(() => {
   // TODO: 根据分组过滤聊天记录（需要后端支持）
   return chatHistory.value
 })
+
+// 切换模型下拉菜单
+const toggleModelDropdown = () => {
+  showModelDropdown.value = !showModelDropdown.value
+}
+
+// 选择模型
+const selectModel = (model) => {
+  selectedModel.value = model
+  showModelDropdown.value = false
+  console.log('切换模型:', model.name, model.value)
+}
+
+// 点击外部关闭下拉菜单
+const handleClickOutside = (event) => {
+  const dropdown = document.querySelector('.model-selector')
+  if (dropdown && !dropdown.contains(event.target)) {
+    showModelDropdown.value = false
+  }
+}
 
 // 自动调整输入框高度
 const adjustTextareaHeight = () => {
@@ -333,7 +399,7 @@ const getPlaceholder = () => {
   return '输入消息，可上传图片、音频或视频...'
 }
 
-// 修改发送消息函数
+// 发送消息
 const sendMessage = async () => {
   if (isStreaming.value) return
   if (!userInput.value.trim() && !selectedFiles.value.length) return
@@ -360,6 +426,8 @@ const sendMessage = async () => {
   if (messageContent) {
     formData.append('prompt', messageContent)
   }
+  // 添加模型参数
+  formData.append('model', selectedModel.value.value)
   messagesToSend.forEach(file => {
     formData.append('files', file)
   })
@@ -368,7 +436,8 @@ const sendMessage = async () => {
   const assistantMessage = {
     role: 'assistant',
     content: '',
-    timestamp: new Date()
+    timestamp: new Date(),
+    metadata: {}  // 初始化 metadata
   }
   currentMessages.value.push(assistantMessage)
   isStreaming.value = true
@@ -376,8 +445,10 @@ const sendMessage = async () => {
   try {
     const reader = await chatAPI.sendMessage(formData, currentChatId.value)
     const decoder = new TextDecoder('utf-8')
-    let accumulatedContent = ''  // 添加累积内容变量
+    let accumulatedContent = ''  // 累积内容
     let hasError = false  // 标记是否有错误
+    let thinkingStartTime = null  // 思考开始时间
+    let thinkingEndTime = null  // 思考结束时间
     
     while (true) {
       try {
@@ -406,14 +477,35 @@ const sendMessage = async () => {
           break
         }
         
+        // 检测思考过程的开始和结束
+        if (newContent.includes('<think>') && !thinkingStartTime) {
+          thinkingStartTime = Date.now()
+        }
+        if (newContent.includes('</think>') && thinkingStartTime && !thinkingEndTime) {
+          thinkingEndTime = Date.now()
+        }
+        
         accumulatedContent += newContent  // 追加新内容
         
         await nextTick(() => {
           // 更新消息，使用累积的内容
           const updatedMessage = {
             ...assistantMessage,
-            content: accumulatedContent  // 使用累积的内容
+            content: accumulatedContent,
+            metadata: {
+              ...assistantMessage.metadata
+            }
           }
+          
+          // 如果思考过程已完成，添加思考时长到 metadata
+          if (thinkingEndTime && thinkingStartTime) {
+            const duration = (thinkingEndTime - thinkingStartTime) / 1000
+            updatedMessage.metadata = {
+              ...updatedMessage.metadata,
+              thinking_duration: duration
+            }
+          }
+          
           const lastIndex = currentMessages.value.length - 1
           currentMessages.value.splice(lastIndex, 1, updatedMessage)
         })
@@ -457,6 +549,8 @@ const retryMessage = async (messageIndex) => {
   if (userMessage.content) {
     formData.append('prompt', userMessage.content)
   }
+  // 添加模型参数
+  formData.append('model', selectedModel.value.value)
   if (userMessage.files) {
     userMessage.files.forEach(file => {
       formData.append('files', file)
@@ -467,7 +561,8 @@ const retryMessage = async (messageIndex) => {
   const assistantMessage = {
     role: 'assistant',
     content: '',
-    timestamp: new Date()
+    timestamp: new Date(),
+    metadata: {}  // 初始化 metadata
   }
   currentMessages.value.push(assistantMessage)
   isStreaming.value = true
@@ -477,6 +572,8 @@ const retryMessage = async (messageIndex) => {
     const decoder = new TextDecoder('utf-8')
     let accumulatedContent = ''
     let hasError = false
+    let thinkingStartTime = null
+    let thinkingEndTime = null
     
     while (true) {
       try {
@@ -502,13 +599,34 @@ const retryMessage = async (messageIndex) => {
           break
         }
         
+        // 检测思考过程的开始和结束
+        if (newContent.includes('<think>') && !thinkingStartTime) {
+          thinkingStartTime = Date.now()
+        }
+        if (newContent.includes('</think>') && thinkingStartTime && !thinkingEndTime) {
+          thinkingEndTime = Date.now()
+        }
+        
         accumulatedContent += newContent
         
         await nextTick(() => {
           const updatedMessage = {
             ...assistantMessage,
-            content: accumulatedContent
+            content: accumulatedContent,
+            metadata: {
+              ...assistantMessage.metadata
+            }
           }
+          
+          // 如果思考过程已完成，添加思考时长到 metadata
+          if (thinkingEndTime && thinkingStartTime) {
+            const duration = (thinkingEndTime - thinkingStartTime) / 1000
+            updatedMessage.metadata = {
+              ...updatedMessage.metadata,
+              thinking_duration: duration
+            }
+          }
+          
           const lastIndex = currentMessages.value.length - 1
           currentMessages.value.splice(lastIndex, 1, updatedMessage)
         })
@@ -607,7 +725,13 @@ const removeFile = (index) => {
 onMounted(() => {
   loadChatHistory()
   loadGroups()
+  loadModels()
   adjustTextareaHeight()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 
 // 加载分组列表
@@ -617,6 +741,32 @@ const loadGroups = async () => {
   } catch (error) {
     console.error('加载分组失败:', error)
     groups.value = []
+  }
+}
+
+// 加载模型列表
+const loadModels = async () => {
+  try {
+    const models = await chatAPI.getModelList()
+    if (models && models.length > 0) {
+      // 只显示启用的模型
+      const enabledModels = models.filter(m => m.status !== false)
+      availableModels.value = enabledModels
+      // 选择第一个推荐的模型，如果没有推荐的则选择第一个
+      const recommendedModel = enabledModels.find(m => m.recommended)
+      selectedModel.value = recommendedModel || enabledModels[0]
+    }
+  } catch (error) {
+    console.error('加载模型列表失败:', error)
+    // 如果加载失败，使用默认模型
+    availableModels.value = [{
+      id: 'default',
+      name: 'Qwen3-千问',
+      value: 'qwen-turbo',
+      description: '综合AI助手',
+      recommended: true
+    }]
+    selectedModel.value = availableModels.value[0]
   }
 }
 
@@ -914,6 +1064,150 @@ const handleGroupConfirm = async (name, icon) => {
     border-radius: 1rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
     overflow: hidden;  // 防止内容溢出
+    
+    .model-selector {
+      position: relative;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      
+      .model-dropdown {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(0, 124, 240, 0.05);
+        border: 1px solid rgba(0, 124, 240, 0.2);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          background: rgba(0, 124, 240, 0.1);
+          border-color: rgba(0, 124, 240, 0.3);
+        }
+        
+        .model-name {
+          font-size: 0.875rem;
+          font-weight: 500;
+          color: #333;
+        }
+        
+        .icon {
+          width: 1rem;
+          height: 1rem;
+          color: #666;
+          transition: transform 0.2s ease;
+          
+          &.rotate {
+            transform: rotate(180deg);
+          }
+        }
+      }
+      
+      .model-list {
+        position: absolute;
+        top: calc(100% + 0.5rem);
+        left: 2rem;
+        min-width: 320px;
+        max-width: 400px;
+        max-height: 500px;
+        overflow-y: auto;
+        background: #fff;
+        border-radius: 0.75rem;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        z-index: 1000;
+        
+        .model-category {
+          .category-title {
+            padding: 0.75rem 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(0, 0, 0, 0.02);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+          }
+          
+          .model-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.875rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            
+            &:last-child {
+              border-bottom: none;
+            }
+            
+            &:hover {
+              background: rgba(0, 124, 240, 0.05);
+            }
+            
+            &.active {
+              background: rgba(0, 124, 240, 0.08);
+              
+              .model-title {
+                color: #007CF0;
+                font-weight: 600;
+              }
+            }
+            
+            &.recommended {
+              .model-title {
+                color: #007CF0;
+              }
+            }
+            
+            .model-info {
+              flex: 1;
+              
+              .model-header {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 0.25rem;
+                
+                .model-title {
+                  font-size: 0.875rem;
+                  font-weight: 500;
+                  color: #333;
+                }
+                
+                .badge {
+                  padding: 0.125rem 0.375rem;
+                  font-size: 0.625rem;
+                  font-weight: 500;
+                  background: #1890ff;
+                  color: #fff;
+                  border-radius: 0.25rem;
+                  
+                  &.beta {
+                    background: #ff7875;
+                  }
+                }
+              }
+              
+              .model-desc {
+                font-size: 0.75rem;
+                color: #666;
+                line-height: 1.4;
+              }
+            }
+            
+            .check-icon {
+              width: 1.25rem;
+              height: 1.25rem;
+              color: #007CF0;
+              flex-shrink: 0;
+            }
+          }
+        }
+      }
+    }
     
     .messages {
       flex: 1;
@@ -1236,6 +1530,88 @@ const handleGroupConfirm = async (name, icon) => {
     background: rgba(40, 40, 40, 0.95);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
     
+    .model-selector {
+      border-bottom-color: rgba(255, 255, 255, 0.05);
+      
+      .model-dropdown {
+        background: rgba(0, 124, 240, 0.1);
+        border-color: rgba(0, 124, 240, 0.3);
+        
+        &:hover {
+          background: rgba(0, 124, 240, 0.15);
+          border-color: rgba(0, 124, 240, 0.4);
+        }
+        
+        .model-name {
+          color: #fff;
+        }
+        
+        .icon {
+          color: #999;
+        }
+      }
+      
+      .model-list {
+        background: #2a2a2a;
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        
+        .model-category {
+          .category-title {
+            color: #999;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom-color: rgba(255, 255, 255, 0.05);
+          }
+          
+          .model-item {
+            border-bottom-color: rgba(255, 255, 255, 0.05);
+            
+            &:hover {
+              background: rgba(0, 124, 240, 0.1);
+            }
+            
+            &.active {
+              background: rgba(0, 124, 240, 0.15);
+              
+              .model-title {
+                color: #38bdf8;
+              }
+            }
+            
+            &.recommended {
+              .model-title {
+                color: #38bdf8;
+              }
+            }
+            
+            .model-info {
+              .model-header {
+                .model-title {
+                  color: #fff;
+                }
+                
+                .badge {
+                  background: #1890ff;
+                  
+                  &.beta {
+                    background: #ff7875;
+                  }
+                }
+              }
+              
+              .model-desc {
+                color: #999;
+              }
+            }
+            
+            .check-icon {
+              color: #38bdf8;
+            }
+          }
+        }
+      }
+    }
+    
     .messages {
       .loading-message {
         .avatar .icon {
@@ -1402,5 +1778,21 @@ const handleGroupConfirm = async (name, icon) => {
     transform: scaleY(1);
     opacity: 1;
   }
+}
+
+// 下拉菜单过渡动画
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: all 0.2s ease;
+}
+
+.dropdown-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 </style>

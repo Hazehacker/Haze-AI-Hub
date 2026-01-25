@@ -39,13 +39,10 @@ export const chatAPI = {
     }
   },
 
-  // 发送聊天消息
-  async sendMessage(data, chatId) {
+  // 发送聊天消息（带思考过程）
+  async sendMessage(data, sessionId) {
     try {
-      let url = `${BASE_URL}/ai/chat-with-thinking-text`
-      if (chatId) {
-        url += `?chatId=${chatId}`
-      }
+      const url = `${BASE_URL}/ai/chat-with-thinking-text`
       
       const token = getToken()
       const headers = {
@@ -53,17 +50,39 @@ export const chatAPI = {
       }
       
       // 根据数据类型设置不同的请求体
+      let body
       if (data instanceof FormData) {
         // FormData 会自动设置 Content-Type
+        // 将 sessionId 添加到 FormData 中
+        if (sessionId) {
+          data.append('sessionId', sessionId)
+        }
+        // 默认启用思考过程
+        if (!data.has('enableThinking')) {
+          data.append('enableThinking', 'true')
+        }
+        // 设置思考预算（可选）
+        if (!data.has('thinkingBudget')) {
+          data.append('thinkingBudget', '10000')
+        }
+        body = data
       } else {
         headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        const params = new URLSearchParams({ 
+          prompt: data,
+          enableThinking: 'true',
+          thinkingBudget: '10000'
+        })
+        if (sessionId) {
+          params.append('sessionId', sessionId)
+        }
+        body = params
       }
       
       const response = await fetch(url, {
         method: 'POST',
         headers: headers,
-        body: data instanceof FormData ? data : 
-          new URLSearchParams({ prompt: data })
+        body: body
       })
 
       if (!response.ok) {
@@ -93,13 +112,17 @@ export const chatAPI = {
       
       // 处理返回的Result对象
       if (result.code === 200 && result.data) {
-        const chatIds = result.data
-        // 转换为前端需要的格式
-        return chatIds.map(id => ({
-          id,
-          title: type === 'pdf' ? `PDF对话 ${id.toString().slice(-6)}` : 
-                 type === 'service' ? `咨询 ${id.toString().slice(-6)}` :
-                 `对话 ${id.toString().slice(-6)}`
+        // 后端返回的是完整的会话对象数组，不是ID数组
+        return result.data.map(session => ({
+          id: session.id,
+          title: session.title || (
+            type === 'pdf' ? `PDF对话 ${session.id.toString().slice(-6)}` : 
+            type === 'service' ? `咨询 ${session.id.toString().slice(-6)}` :
+            `对话 ${session.id.toString().slice(-6)}`
+          ),
+          type: session.type,
+          lastActiveAt: session.lastActiveAt,
+          createdAt: session.createdAt
         }))
       }
       
@@ -111,10 +134,10 @@ export const chatAPI = {
   },
 
   // 获取特定对话的消息历史
-  async getChatMessages(chatId, type = 'chat') {  // 添加类型参数
+  async getChatMessages(sessionId, type = 'chat') {  // 添加类型参数
     try {
       const token = getToken()
-      const response = await fetch(`${BASE_URL}/ai/history/${type}/${chatId}`, {
+      const response = await fetch(`${BASE_URL}/ai/history/${type}/${sessionId}`, {
         headers: {
           'authentication': token || ''
         }
@@ -143,10 +166,10 @@ export const chatAPI = {
   },
 
   // 发送游戏消息
-  async sendGameMessage(prompt, chatId) {
+  async sendGameMessage(prompt, sessionId) {
     try {
       const token = getToken()
-      const response = await fetch(`${BASE_URL}/ai/game?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`, {
+      const response = await fetch(`${BASE_URL}/ai/game?prompt=${encodeURIComponent(prompt)}&sessionId=${sessionId}`, {
         method: 'GET',
         headers: {
           'authentication': token || ''
@@ -165,10 +188,10 @@ export const chatAPI = {
   },
 
   // 发送客服消息
-  async sendServiceMessage(prompt, chatId) {
+  async sendServiceMessage(prompt, sessionId) {
     try {
       const token = getToken()
-      const response = await fetch(`${BASE_URL}/ai/service?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`, {
+      const response = await fetch(`${BASE_URL}/ai/service?prompt=${encodeURIComponent(prompt)}&sessionId=${sessionId}`, {
         method: 'GET',
         headers: {
           'authentication': token || ''
@@ -187,10 +210,10 @@ export const chatAPI = {
   },
 
   // 发送 PDF 问答消息
-  async sendPdfMessage(prompt, chatId) {
+  async sendPdfMessage(prompt, sessionId) {
     try {
       const token = getToken()
-      const response = await fetch(`${BASE_URL}/ai/pdf/chat?prompt=${encodeURIComponent(prompt)}&chatId=${chatId}`, {
+      const response = await fetch(`${BASE_URL}/ai/pdf/chat?prompt=${encodeURIComponent(prompt)}&sessionId=${sessionId}`, {
         method: 'GET',
         headers: {
           'authentication': token || ''
@@ -208,6 +231,43 @@ export const chatAPI = {
     } catch (error) {
       console.error('API Error:', error)
       throw error
+    }
+  },
+
+  // 获取可用模型列表
+  async getModelList() {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/ai/models`, {
+        method: 'GET',
+        headers: {
+          'authentication': token || ''
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      if (result.code === 200 && result.data) {
+        // 转换字段名以适配前端
+        return result.data.map(model => ({
+          id: model.id,
+          name: model.name,
+          value: model.name, // 使用name作为API调用值
+          description: model.description,
+          recommended: model.isRecommended,
+          beta: model.isBeta,
+          sort: model.sort,
+          status: model.status
+        }))
+      }
+
+      return []
+    } catch (error) {
+      console.error('获取模型列表失败:', error)
+      return []
     }
   }
 } 
