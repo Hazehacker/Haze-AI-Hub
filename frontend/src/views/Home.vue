@@ -25,7 +25,6 @@ import { ref } from 'vue'
 import { useDark } from '@vueuse/core'
 import { 
   ChatBubbleLeftRightIcon,
-  HeartIcon,
   UserGroupIcon,
   DocumentTextIcon
 } from '@heroicons/vue/24/outline'
@@ -39,14 +38,6 @@ const aiApps = ref([
     description: '多模态对话机器人，支持图片、音频等',
     route: '/ai-chat',
     icon: ChatBubbleLeftRightIcon
-  },
-  {
-    id: 2,
-    title: '哄哄模拟器',
-    description: '一个帮助你练习哄女朋友开心的小游戏',
-    route: '/game',
-    icon: HeartIcon,
-    iconClass: 'heart-icon'
   },
   {
     id: 3,
