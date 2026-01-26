@@ -1,12 +1,12 @@
 <template>
-  <div class="chat-pdf" :class="{ 'dark': isDark }">
+  <div class="astra" :class="{ 'dark': isDark }">
     <div class="chat-container">
       <!-- 左侧边栏 -->
       <div class="sidebar">
         <div class="sidebar-header">
           <a href="#" class="logo-link" @click="handleLogoClick">
             <DocumentTextIcon class="logo" />
-            <h1 class="title">ChatPDF</h1>
+            <h1 class="title">Astra</h1>
           </a>
         </div>
 
@@ -577,12 +577,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   // 移除事件监听器
-  window.removeEventListener('cleanupChatPDF', cleanupResources)
+  window.removeEventListener('cleanupAstra', cleanupResources)
 })
 </script>
 
 <style scoped lang="scss">
-.chat-pdf {
+.astra {
   position: fixed;
   top: 64px;
   left: 0;
@@ -1405,7 +1405,7 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .chat-pdf {
+  .astra {
     .chat-container {
       padding: 0;
     }

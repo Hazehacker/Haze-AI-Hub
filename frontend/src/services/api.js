@@ -169,11 +169,18 @@ export const chatAPI = {
   async sendGameMessage(prompt, sessionId) {
     try {
       const token = getToken()
-      const response = await fetch(`${BASE_URL}/ai/game?prompt=${encodeURIComponent(prompt)}&sessionId=${sessionId}`, {
-        method: 'GET',
+      const params = new URLSearchParams({
+        prompt: prompt,
+        sessionId: sessionId
+      })
+      
+      const response = await fetch(`${BASE_URL}/ai/game`, {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
           'authentication': token || ''
-        }
+        },
+        body: params
       })
 
       if (!response.ok) {

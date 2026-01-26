@@ -41,16 +41,16 @@ const aiApps = ref([
   },
   {
     id: 3,
-    title: '智能客服',
-    description: '24小时在线的智能课程咨询师',
+    title: '智能助手',
+    description: '24小时在线的智能博客助手',
     route: '/customer-service',
     icon: UserGroupIcon
   },
   {
     id: 4,
-    title: 'ChatPDF',
+    title: 'Astra',
     description: '打造你的个人知识库，与知识库自由对话',
-    route: '/chat-pdf',
+    route: '/astra',
     icon: DocumentTextIcon
   }
 ])

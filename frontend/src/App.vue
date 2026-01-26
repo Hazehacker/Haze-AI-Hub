@@ -63,9 +63,9 @@ onMounted(async () => {
   
   // 监听路由变化
   router.afterEach((to, from) => {
-    // 如果是从 ChatPDF 页面离开
-    if (from.path === '/chat-pdf') {
-      window.dispatchEvent(new CustomEvent('cleanupChatPDF'))
+    // 如果是从 Astra 页面离开
+    if (from.path === '/astra') {
+      window.dispatchEvent(new CustomEvent('cleanupAstra'))
     }
     currentRoute.value = to.path
   })

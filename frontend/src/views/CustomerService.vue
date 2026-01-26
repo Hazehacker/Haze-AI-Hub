@@ -29,7 +29,7 @@
             <ComputerDesktopIcon class="avatar" />
             <div class="info">
               <h3>小雾</h3>
-              <p>智能客服</p>
+              <p>智能助手</p>
             </div>
           </div>
         </div>

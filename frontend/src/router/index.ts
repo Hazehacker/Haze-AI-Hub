@@ -33,9 +33,9 @@ const router = createRouter({
       component: () => import('../views/CustomerService.vue')
     },
     {
-      path: '/chat-pdf',
-      name: 'ChatPDF',
-      component: () => import('../views/ChatPDF.vue')
+      path: '/astra',
+      name: 'Astra',
+      component: () => import('../views/NoteAsk.vue')
     },
     {
       path: '/game',
