@@ -23,19 +23,33 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class ChatController {
     private final ChatClient chatClient;
+    private final ChatClient gameChatClient;
     private final IBailianThinkingService bailianThinkingService;
 
     /**
      * 原有的聊天接口（不包含思考过程）
      */
     @PostMapping(value = "/chat", produces = "text/html;charset=utf-8")
-    public Flux<String> chat(@RequestParam String prompt, String chatId) {
+    public Flux<String> chat(@RequestParam String prompt, String sessionId) {
         return chatClient.prompt()
                 .user(prompt)
-                .advisors(a -> a.param(AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
+                .advisors(a -> a.param(AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, sessionId))
                 .stream()
                 .content();
     }
+
+    /**
+     * 哄哄模拟器聊天接口
+     */
+    @PostMapping(value = "/game", produces = "text/html;charset=utf-8")
+    public Flux<String> gameChat(@RequestParam String prompt, String sessionId) {
+        return gameChatClient.prompt()
+                .user(prompt)
+                .advisors(a -> a.param(AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY, sessionId))
+                .stream()
+                .content();
+    }
+
 
     /**
      * 带思考过程的聊天接口（纯文本流式返回）【该版本SpringAI不支持阿里云百炼的模型，所以要有思考过程，需要自己封装】

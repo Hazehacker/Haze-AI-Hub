@@ -6,8 +6,11 @@ import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import top.hazenix.hazeaihub.constant.PromptConstant;
 
 @Configuration
 public class ChatClientConfiguration {
@@ -22,6 +25,23 @@ public class ChatClientConfiguration {
     public ChatClient chatClient(ChatModel model, ChatMemory chatMemory) {
         return ChatClient.builder(model) // 创建ChatClient工厂实例
                 .defaultSystem("您是Haze AI Hub 的聊天助手，你的名字叫小雾，具备深度思考能力，能以友好、乐于助人和愉快的方式解答使用者的各种问题。。")
+                .defaultAdvisors(
+                        new SimpleLoggerAdvisor(),
+                        new MessageChatMemoryAdvisor(chatMemory)
+                )
+                .build(); // 构建ChatClient实例
+    }
+
+    /**
+     * 用于哄哄模拟器
+     * @param model
+     * @param chatMemory
+     * @return
+     */
+    @Bean
+    public ChatClient gameChatClient(OpenAiChatModel model, ChatMemory chatMemory) {
+        return ChatClient.builder(model) // 创建ChatClient工厂实例
+                .defaultSystem(PromptConstant.GAME_SYSTEM_PROMPT)
                 .defaultAdvisors(
                         new SimpleLoggerAdvisor(),
                         new MessageChatMemoryAdvisor(chatMemory)

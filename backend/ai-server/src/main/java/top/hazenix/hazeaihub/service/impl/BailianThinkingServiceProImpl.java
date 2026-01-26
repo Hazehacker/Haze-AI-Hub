@@ -54,7 +54,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
     @Value("${spring.ai.openai.api-key}")
     private String apiKey;
 
-    @Value("${spring.ai.openai.chat.options.model:deepseek-r1}")
+    @Value("${ai.bailian.default.model:deepseek-r1}")
     private String model;// 默认模型
 
     public BailianThinkingServiceProImpl(WebClient.Builder webClientBuilder,
