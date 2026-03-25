@@ -127,3 +127,7 @@ docker-compose.yml
 Dockerfile
 # 如果需要保密转发逻辑
 nginx.conf
+
+# special
+.claude
+CLAUDE.md
