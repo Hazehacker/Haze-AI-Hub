@@ -131,3 +131,4 @@ nginx.conf
 # special
 .claude
 CLAUDE.md
+/resume

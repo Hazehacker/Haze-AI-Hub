@@ -39,8 +39,8 @@ export const chatAPI = {
     }
   },
 
-  // 发送聊天消息（带思考过程）
-  async sendMessage(data, sessionId) {
+  // 发送聊天消息（带思考过程）- 支持 SSE 事件
+  async sendMessage(data, sessionId, onSessionCreated) {
     try {
       const url = `${BASE_URL}/ai/chat-with-thinking-text`
       
@@ -53,7 +53,7 @@ export const chatAPI = {
       let body
       if (data instanceof FormData) {
         // FormData 会自动设置 Content-Type
-        // 将 sessionId 添加到 FormData 中
+        // 将 sessionId 添加到 FormData 中（首条消息时为 null）
         if (sessionId) {
           data.append('sessionId', sessionId)
         }
@@ -89,18 +89,66 @@ export const chatAPI = {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      return response.body.getReader()
+      // 返回一个包装的 reader，可以处理 SSE 事件
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+      
+      return {
+        async read() {
+          const { value, done } = await reader.read()
+          if (done) return { value: undefined, done: true }
+          
+          const chunk = decoder.decode(value, { stream: true })
+          buffer += chunk
+          
+          // 检查是否包含 SSE 事件
+          if (buffer.includes('event: session-created')) {
+            const lines = buffer.split('\n')
+            let eventData = null
+            
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].startsWith('event: session-created')) {
+                // 下一行应该是 data
+                if (i + 1 < lines.length && lines[i + 1].startsWith('data: ')) {
+                  const dataStr = lines[i + 1].substring(6) // 移除 "data: "
+                  try {
+                    eventData = JSON.parse(dataStr)
+                    if (onSessionCreated && eventData.sessionId) {
+                      onSessionCreated(eventData.sessionId)
+                    }
+                  } catch (e) {
+                    console.error('解析 session-created 事件失败:', e)
+                  }
+                }
+                // 移除已处理的事件
+                buffer = lines.slice(i + 2).join('\n')
+                break
+              }
+            }
+          }
+          
+          // 返回非事件的内容
+          const content = buffer.replace(/event: .*\ndata: .*\n\n/g, '')
+          buffer = ''
+          
+          return { 
+            value: new TextEncoder().encode(content), 
+            done: false 
+          }
+        }
+      }
     } catch (error) {
       console.error('API Error:', error)
       throw error
     }
   },
 
-  // 获取聊天历史列表
-  async getChatHistory(type = 'chat') {  // 添加类型参数
+  // 获取会话列表（使用新接口）
+  async getChatHistory(type = 'chat') {
     try {
       const token = getToken()
-      const response = await fetch(`${BASE_URL}/ai/history/${type}`, {
+      const response = await fetch(`${BASE_URL}/ai/session/list?type=${type}`, {
         headers: {
           'authentication': token || ''
         }
@@ -112,23 +160,19 @@ export const chatAPI = {
       
       // 处理返回的Result对象
       if (result.code === 200 && result.data) {
-        // 后端返回的是完整的会话对象数组，不是ID数组
         return result.data.map(session => ({
           id: session.id,
-          title: session.title || (
-            type === 'pdf' ? `PDF对话 ${session.id.toString().slice(-6)}` : 
-            type === 'service' ? `咨询 ${session.id.toString().slice(-6)}` :
-            `对话 ${session.id.toString().slice(-6)}`
-          ),
+          title: session.title || '新对话',
           type: session.type,
           lastActiveAt: session.lastActiveAt,
-          createdAt: session.createdAt
+          createdAt: session.createdAt,
+          isPinned: session.isPinned
         }))
       }
       
       return []
     } catch (error) {
-      console.error('API Error:', error)
+      console.error('获取会话列表失败:', error)
       return []
     }
   },

@@ -89,7 +89,107 @@
         </div>
         
         <div class="messages" ref="messagesRef">
-          <!-- 加载动画 - 只在没有内容时显示 -->
+          <!-- 欢迎界面 -->
+          <div v-if="showWelcome && currentMessages.length === 0" class="welcome-screen">
+            <div class="welcome-content">
+              <!-- Logo 区域 -->
+              <div class="welcome-logo">
+                <div class="logo-icon">
+                  <SparklesIcon class="icon" />
+                </div>
+              </div>
+              
+              <!-- 欢迎语 -->
+              <h1 class="welcome-title">你好，我是 AI 助手</h1>
+              <p class="welcome-subtitle">我可以帮你解答问题、创作内容、分析数据等</p>
+              
+              <!-- 输入框区域 -->
+              <div class="input-section">
+                <div class="input-wrapper">
+                  <textarea
+                    v-model="userInput"
+                    @keydown.enter.prevent="sendMessage"
+                    placeholder="向 AI 助手提问..."
+                    rows="1"
+                    ref="welcomeInputRef"
+                    class="welcome-textarea"
+                  ></textarea>
+                  <button 
+                    class="send-btn"
+                    @click="sendMessage"
+                    :disabled="isStreaming || !userInput.trim()"
+                  >
+                    <PaperAirplaneIcon class="icon" />
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 快捷功能 -->
+              <div class="quick-tools">
+                <div class="tool-item" @click="quickPrompt('帮我写一首关于春天的诗')">
+                  <div class="tool-icon">
+                    <PencilSquareIcon class="icon" />
+                  </div>
+                  <span class="tool-label">写作助手</span>
+                </div>
+                <div class="tool-item" @click="quickPrompt('解释一下量子计算的基本原理')">
+                  <div class="tool-icon">
+                    <BookOpenIcon class="icon" />
+                  </div>
+                  <span class="tool-label">知识问答</span>
+                </div>
+                <div class="tool-item" @click="quickPrompt('帮我分析这段代码的性能问题')">
+                  <div class="tool-icon">
+                    <CodeBracketIcon class="icon" />
+                  </div>
+                  <span class="tool-label">代码助手</span>
+                </div>
+                <div class="tool-item" @click="quickPrompt('帮我制定一个健身计划')">
+                  <div class="tool-icon">
+                    <HeartIcon class="icon" />
+                  </div>
+                  <span class="tool-label">健康顾问</span>
+                </div>
+                <div class="tool-item" @click="quickPrompt('帮我翻译这段英文')">
+                  <div class="tool-icon">
+                    <LanguageIcon class="icon" />
+                  </div>
+                  <span class="tool-label">翻译助手</span>
+                </div>
+                <div class="tool-item" @click="quickPrompt('帮我制定旅行计划')">
+                  <div class="tool-icon">
+                    <MapIcon class="icon" />
+                  </div>
+                  <span class="tool-label">旅行规划</span>
+                </div>
+              </div>
+              
+              <!-- 底部功能入口 -->
+              <div class="bottom-features">
+                <div class="feature-item">
+                  <MicrophoneIcon class="icon" />
+                  <span>语音输入</span>
+                </div>
+                <div class="feature-divider"></div>
+                <div class="feature-item">
+                  <PhotoIcon class="icon" />
+                  <span>图片上传</span>
+                </div>
+                <div class="feature-divider"></div>
+                <div class="feature-item">
+                  <DocumentTextIcon class="icon" />
+                  <span>文档分析</span>
+                </div>
+                <div class="feature-divider"></div>
+                <div class="feature-item">
+                  <FilmIcon class="icon" />
+                  <span>视频理解</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 消息列表 -->
           <template v-for="(message, index) in currentMessages" :key="index">
             <ChatMessage
               v-if="message.content || message.role !== 'assistant' || !isStreaming"
@@ -178,7 +278,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useDark } from '@vueuse/core'
 import { useUserStore } from '@/stores/user'
 import { 
@@ -192,7 +292,17 @@ import {
   TrashIcon,
   ComputerDesktopIcon,
   ChevronDownIcon,
-  CheckIcon
+  CheckIcon,
+  SparklesIcon,
+  PencilSquareIcon,
+  BookOpenIcon,
+  CodeBracketIcon,
+  HeartIcon,
+  LanguageIcon,
+  MapIcon,
+  MicrophoneIcon,
+  PhotoIcon,
+  FilmIcon
 } from '@heroicons/vue/24/outline'
 import ChatMessage from '../components/ChatMessage.vue'
 import GroupDialog from '../components/GroupDialog.vue'
@@ -203,6 +313,7 @@ const isDark = useDark()
 const userStore = useUserStore()
 const messagesRef = ref(null)
 const inputRef = ref(null)
+const welcomeInputRef = ref(null)
 const userInput = ref('')
 const isStreaming = ref(false)
 const currentChatId = ref(null)
@@ -214,6 +325,7 @@ const groups = ref([])
 const selectedGroupId = ref(null)
 const showGroupDialog = ref(false)
 const editingGroup = ref(null)
+const showWelcome = ref(true) // 显示欢迎界面
 
 // 模型选择相关
 const showModelDropdown = ref(false)
@@ -261,8 +373,15 @@ const adjustTextareaHeight = () => {
   if (textarea) {
     textarea.style.height = 'auto'
     textarea.style.height = textarea.scrollHeight + 'px'
-  }else{
+  } else {
     textarea.style.height = '50px'
+  }
+  
+  // 同时调整欢迎页面的输入框
+  const welcomeTextarea = welcomeInputRef.value
+  if (welcomeTextarea) {
+    welcomeTextarea.style.height = 'auto'
+    welcomeTextarea.style.height = welcomeTextarea.scrollHeight + 'px'
   }
 }
 
@@ -407,6 +526,9 @@ const sendMessage = async () => {
   const messageContent = userInput.value.trim()
   const messagesToSend = selectedFiles.value.slice() // 保存文件引用
   
+  // 隐藏欢迎界面
+  showWelcome.value = false
+  
   // 添加用户消息
   const userMessage = {
     role: 'user',
@@ -443,7 +565,28 @@ const sendMessage = async () => {
   isStreaming.value = true
   
   try {
-    const reader = await chatAPI.sendMessage(formData, currentChatId.value)
+    // 传入 sessionId（首条消息时为 null）和回调函数处理 session-created 事件
+    const reader = await chatAPI.sendMessage(
+      formData, 
+      currentChatId.value,
+      (newSessionId) => {
+        // 收到新会话ID
+        console.log('收到新会话ID:', newSessionId)
+        currentChatId.value = newSessionId
+        
+        // 添加到聊天历史
+        const newChat = {
+          id: newSessionId,
+          title: '新对话',
+          isPinned: false
+        }
+        chatHistory.value = [newChat, ...chatHistory.value]
+        
+        // 更新 URL（可选）
+        // window.history.pushState({}, '', `/chat/${newSessionId}`)
+      }
+    )
+    
     const decoder = new TextDecoder('utf-8')
     let accumulatedContent = ''  // 累积内容
     let hasError = false  // 标记是否有错误
@@ -521,6 +664,13 @@ const sendMessage = async () => {
       const lastIndex = currentMessages.value.length - 1
       currentMessages.value[lastIndex].role = 'error'
       currentMessages.value[lastIndex].type = 'error'
+    }
+    
+    // 流结束后，刷新会话列表以获取更新的标题
+    if (currentChatId.value) {
+      setTimeout(() => {
+        loadChatHistory()
+      }, 2000) // 等待2秒让后端异步生成标题
     }
   } catch (error) {
     console.error('发送消息失败:', error)
@@ -656,6 +806,7 @@ const retryMessage = async (messageIndex) => {
 // 加载特定对话
 const loadChat = async (chatId) => {
   currentChatId.value = chatId
+  showWelcome.value = false
   try {
     const messages = await chatAPI.getChatMessages(chatId, 'chat')
     currentMessages.value = messages
@@ -683,28 +834,13 @@ const loadChatHistory = async () => {
 }
 
 // 开始新对话
-const startNewChat = async () => {
-  try {
-    // 从后端创建新会话并获取ID
-    const userId = userStore.userInfo?.id
-    if (!userId) {
-      console.error('用户未登录')
-      return
-    }
-    
-    const sessionId = await chatAPI.createSession(userId, 'chat')
-    currentChatId.value = sessionId
-    currentMessages.value = []
-    
-    // 添加新对话到聊天历史列表
-    const newChat = {
-      id: sessionId,
-      title: `对话 ${sessionId.toString().slice(-6)}`
-    }
-    chatHistory.value = [newChat, ...chatHistory.value]
-  } catch (error) {
-    console.error('创建新会话失败:', error)
-  }
+const startNewChat = () => {
+  // 不再调用后端创建会话，只清空本地状态
+  currentChatId.value = null
+  currentMessages.value = []
+  showWelcome.value = true
+  selectedFiles.value = []
+  userInput.value = ''
 }
 
 // 格式化文件大小
@@ -722,6 +858,14 @@ const removeFile = (index) => {
   }
 }
 
+// 快捷提示
+const quickPrompt = (prompt) => {
+  userInput.value = prompt
+  nextTick(() => {
+    sendMessage()
+  })
+}
+
 onMounted(() => {
   loadChatHistory()
   loadGroups()
@@ -732,6 +876,17 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+})
+
+// 监听输入框内容变化，自动调整高度
+watch(userInput, () => {
+  nextTick(() => {
+    const welcomeTextarea = welcomeInputRef.value
+    if (welcomeTextarea) {
+      welcomeTextarea.style.height = 'auto'
+      welcomeTextarea.style.height = Math.min(welcomeTextarea.scrollHeight, 120) + 'px'
+    }
+  })
 })
 
 // 加载分组列表
@@ -1214,6 +1369,254 @@ const handleGroupConfirm = async (name, icon) => {
       overflow-y: auto;  // 只允许消息区域滚动
       padding: 2rem;
       
+      .welcome-screen {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+        animation: fadeIn 0.5s ease;
+        
+        .welcome-content {
+          text-align: center;
+          max-width: 900px;
+          width: 100%;
+          padding: 2rem;
+          
+          .welcome-logo {
+            margin-bottom: 2rem;
+            
+            .logo-icon {
+              width: 100px;
+              height: 100px;
+              margin: 0 auto;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              border-radius: 28px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              box-shadow: 0 20px 40px rgba(102, 126, 234, 0.35);
+              animation: float 3s ease-in-out infinite;
+              
+              .icon {
+                width: 56px;
+                height: 56px;
+                color: white;
+              }
+            }
+          }
+          
+          .welcome-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+          }
+          
+          .welcome-subtitle {
+            font-size: 1.25rem;
+            color: #666;
+            margin-bottom: 3rem;
+            line-height: 1.6;
+          }
+          
+          // 输入框区域
+          .input-section {
+            margin-bottom: 2.5rem;
+            
+            .input-wrapper {
+              display: flex;
+              align-items: center;
+              gap: 0.75rem;
+              max-width: 720px;
+              margin: 0 auto;
+              padding: 0.75rem 1rem;
+              background: #fff;
+              border: 2px solid #e5e7eb;
+              border-radius: 24px;
+              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+              transition: all 0.3s ease;
+              
+              &:focus-within {
+                border-color: #667eea;
+                box-shadow: 0 4px 24px rgba(102, 126, 234, 0.2);
+              }
+              
+              .welcome-textarea {
+                flex: 1;
+                border: none;
+                outline: none;
+                resize: none;
+                font-size: 1rem;
+                line-height: 1.5;
+                color: #1a1a2e;
+                background: transparent;
+                padding: 0.25rem 0;
+                min-height: 28px;
+                max-height: 120px;
+                
+                &::placeholder {
+                  color: #9ca3af;
+                }
+              }
+              
+              .send-btn {
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border: none;
+                border-radius: 50%;
+                color: white;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                flex-shrink: 0;
+                
+                .icon {
+                  width: 20px;
+                  height: 20px;
+                  transform: rotate(90deg);
+                }
+                
+                &:hover:not(:disabled) {
+                  transform: scale(1.05);
+                  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+                }
+                
+                &:active:not(:disabled) {
+                  transform: scale(0.95);
+                }
+                
+                &:disabled {
+                  opacity: 0.5;
+                  cursor: not-allowed;
+                }
+              }
+            }
+          }
+          
+          // 快捷功能工具栏
+          .quick-tools {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            
+            .tool-item {
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+              padding: 0.75rem 1.25rem;
+              background: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 100px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              
+              &:hover {
+                background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+                border-color: #667eea;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+                
+                .tool-icon {
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  
+                  .icon {
+                    color: white;
+                  }
+                }
+              }
+              
+              .tool-icon {
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #e5e7eb;
+                border-radius: 10px;
+                transition: all 0.3s ease;
+                
+                .icon {
+                  width: 18px;
+                  height: 18px;
+                  color: #666;
+                  transition: color 0.3s ease;
+                }
+              }
+              
+              .tool-label {
+                font-size: 0.9rem;
+                font-weight: 500;
+                color: #374151;
+              }
+            }
+          }
+          
+          // 底部功能入口
+          .bottom-features {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1.5rem;
+            background: linear-gradient(180deg, transparent 0%, rgba(102, 126, 234, 0.05) 100%);
+            border-radius: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            
+            .feature-item {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 0.5rem;
+              padding: 1rem;
+              border-radius: 12px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+              
+              .icon {
+                width: 28px;
+                height: 28px;
+                color: #667eea;
+                transition: transform 0.3s ease;
+              }
+              
+              span {
+                font-size: 0.8rem;
+                color: #666;
+                font-weight: 500;
+              }
+              
+              &:hover {
+                background: rgba(102, 126, 234, 0.1);
+                
+                .icon {
+                  transform: scale(1.1);
+                }
+                
+                span {
+                  color: #667eea;
+                }
+              }
+            }
+            
+            .feature-divider {
+              width: 1px;
+              height: 40px;
+              background: #e5e7eb;
+            }
+          }
+        }
+      }
+      
       .loading-message {
         display: flex;
         margin-bottom: 1.5rem;
@@ -1530,6 +1933,121 @@ const handleGroupConfirm = async (name, icon) => {
     background: rgba(40, 40, 40, 0.95);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
     
+    .messages {
+      .welcome-screen {
+        .welcome-content {
+          .welcome-logo {
+            .logo-icon {
+              background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+              box-shadow: 0 20px 40px rgba(129, 140, 248, 0.4);
+            }
+          }
+          
+          .welcome-title {
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 50%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          }
+          
+          .welcome-subtitle {
+            color: #9ca3af;
+          }
+          
+          // 暗色模式输入框
+          .input-section {
+            .input-wrapper {
+              background: rgba(30, 30, 30, 0.8);
+              border-color: #404040;
+              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+              
+              &:focus-within {
+                border-color: #818cf8;
+                box-shadow: 0 4px 24px rgba(129, 140, 248, 0.25);
+              }
+              
+              .welcome-textarea {
+                color: #f3f4f6;
+                
+                &::placeholder {
+                  color: #6b7280;
+                }
+              }
+              
+              .send-btn {
+                background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+                
+                &:hover:not(:disabled) {
+                  box-shadow: 0 4px 16px rgba(129, 140, 248, 0.5);
+                }
+              }
+            }
+          }
+          
+          // 暗色模式快捷工具
+          .quick-tools {
+            .tool-item {
+              background: rgba(30, 30, 30, 0.6);
+              border-color: #404040;
+              
+              &:hover {
+                background: linear-gradient(135deg, rgba(129, 140, 248, 0.2) 0%, rgba(167, 139, 250, 0.2) 100%);
+                border-color: #818cf8;
+                box-shadow: 0 4px 16px rgba(129, 140, 248, 0.2);
+                
+                .tool-icon {
+                  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
+                  
+                  .icon {
+                    color: white;
+                  }
+                }
+              }
+              
+              .tool-icon {
+                background: #404040;
+                
+                .icon {
+                  color: #9ca3af;
+                }
+              }
+              
+              .tool-label {
+                color: #e5e7eb;
+              }
+            }
+          }
+          
+          // 暗色模式底部功能
+          .bottom-features {
+            background: linear-gradient(180deg, transparent 0%, rgba(129, 140, 248, 0.08) 100%);
+            
+            .feature-item {
+              .icon {
+                color: #818cf8;
+              }
+              
+              span {
+                color: #9ca3af;
+              }
+              
+              &:hover {
+                background: rgba(129, 140, 248, 0.15);
+                
+                span {
+                  color: #a5b4fc;
+                }
+              }
+            }
+            
+            .feature-divider {
+              background: #404040;
+            }
+          }
+        }
+      }
+    }
+    
     .model-selector {
       border-bottom-color: rgba(255, 255, 255, 0.05);
       
@@ -1777,6 +2295,24 @@ const handleGroupConfirm = async (name, icon) => {
   50% {
     transform: scaleY(1);
     opacity: 1;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 
