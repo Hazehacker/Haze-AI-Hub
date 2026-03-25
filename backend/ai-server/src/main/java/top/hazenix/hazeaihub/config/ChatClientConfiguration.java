@@ -1,13 +1,8 @@
 package top.hazenix.hazeaihub.config;
 
+import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import top.hazenix.hazeaihub.constant.PromptConstant;
@@ -16,40 +11,36 @@ import top.hazenix.hazeaihub.constant.PromptConstant;
 public class ChatClientConfiguration {
 
     @Bean
-    public ChatMemory chatMemory(){
-        return new InMemoryChatMemory();
-    }
-
-    // 注意参数中的model就是使用的模型，用什么模型就指定什么模型
-    @Bean
-    public ChatClient chatClient(ChatModel model, ChatMemory chatMemory) {
-        return ChatClient.builder(model) // 创建ChatClient工厂实例
+    public ChatClient chatClient(ChatModel model) {
+        return ChatClient.builder(model)
                 .defaultSystem("您是Haze AI Hub 的聊天助手，你的名字叫小雾，具备深度思考能力，能以友好、乐于助人和愉快的方式解答使用者的各种问题。。")
-                .defaultAdvisors(
-                        new SimpleLoggerAdvisor(),
-                        new MessageChatMemoryAdvisor(chatMemory)
-                )
-                .build(); // 构建ChatClient实例
+                .build();
     }
 
     /**
      * 用于哄哄模拟器
-     * @param model
-     * @param chatMemory
-     * @return
      */
     @Bean
-    public ChatClient gameChatClient(OpenAiChatModel model, ChatMemory chatMemory) {
-        return ChatClient.builder(model) // 创建ChatClient工厂实例
+    public ChatClient gameChatClient(DashScopeChatModel model) {
+        return ChatClient.builder(model)
                 .defaultSystem(PromptConstant.GAME_SYSTEM_PROMPT)
-                .defaultAdvisors(
-                        new SimpleLoggerAdvisor(),
-                        new MessageChatMemoryAdvisor(chatMemory)
-                )
-                .build(); // 构建ChatClient实例
+                .build();
     }
 
+    @Bean
+    public ChatClient mediaChatClient(DashScopeChatModel model) {
+        return ChatClient.builder(model)
+                .defaultSystem(PromptConstant.GAME_SYSTEM_PROMPT)
+                .build();
+    }
 
-
-
+    /**
+     * 用于Astra知识库对话
+     */
+    @Bean
+    public ChatClient astraClient(DashScopeChatModel model) {
+        return ChatClient.builder(model)
+                .defaultSystem("请根据提供的上下文回答问题，不要自己猜测。")
+                .build();
+    }
 }

@@ -4,13 +4,25 @@ spring:
   profiles:
     active: dev
   ai:
-    openai:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
+    dashscope:
       api-key: ${ai.bailian.api-key}
       chat:
         options:
-          model: deepseek-r1
+          model: deepseek-v3
           temperature: 0.8
+      embedding:
+        options:
+          model: text-embedding-v4 # 文本向量
+#          model: qwen2.5-vl-embedding # 多模态向量模型
+    ai:
+      vectorstore:
+        redis:
+          index: spring_ai_index # 向量库索引名
+          initialize-schema: true # 是否初始化向量库索引结构（框架自动创建索引库结构）
+          prefix: "doc:" # 向量库所有key的前缀（用于区分不同的库）
+    data:
+      redis:
+        host: ${ai.redis.host:localhost} # redis服务地址
   datasource:
     url: jdbc:postgresql://${ai.datasource.host:localhost}:${ai.datasource.port:5432}/${ai.datasource.database:haze-ai-hub}?sslmode=disable
     driver-class-name: ${ai.datasource.driver-class-name:org.postgresql.Driver}

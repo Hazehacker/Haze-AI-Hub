@@ -50,10 +50,17 @@
             <version>1.2.76</version>
         </dependency>
 
-        <!--OPENAI-->
+        <!--DashScope (Spring AI Alibaba)-->
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+            <version>${spring-ai-alibaba.version}</version>
+        </dependency>
+
+        <!-- RAG: QuestionAnswerAdvisor -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
+            <artifactId>spring-ai-advisors-vector-store</artifactId>
         </dependency>
 
         <!--    JWT解析库    -->
@@ -61,6 +68,12 @@
             <groupId>com.nimbusds</groupId>
             <artifactId>nimbus-jose-jwt</artifactId>
             <version>9.40</version>
+        </dependency>
+
+        <!--PDF-reader-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pdf-document-reader</artifactId>
         </dependency>
 
 
