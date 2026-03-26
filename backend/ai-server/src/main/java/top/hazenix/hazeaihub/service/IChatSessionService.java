@@ -1,7 +1,16 @@
 package top.hazenix.hazeaihub.service;
 
+import top.hazenix.hazeaihub.dto.SessionListDTO;
 import top.hazenix.hazeaihub.entity.ChatSession;
 
+import java.util.List;
+
+/**
+ * @description: 会话服务接口
+ * @author: Hazenix
+ * @version: 1.0.0
+ * @date: 2026/1/27
+ */
 public interface IChatSessionService {
     /**
      * 创建新会话
@@ -25,4 +34,36 @@ public interface IChatSessionService {
      * @param sessionId 会话ID
      */
     void deleteSession(Long sessionId);
+    
+    /**
+     * 获取会话详情
+     * @param sessionId 会话ID
+     * @return 会话对象
+     */
+    ChatSession getSessionById(Long sessionId);
+    
+    /**
+     * 更新会话最后活跃时间
+     * @param sessionId 会话ID
+     */
+    void updateLastActiveTime(Long sessionId);
+    
+    /**
+     * 获取用户的会话列表
+     * @param userId 用户ID
+     * @param type 会话类型（可选）
+     * @param groupId 分组ID（可选）
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @return 会话列表
+     */
+    List<SessionListDTO> getSessionList(Long userId, String type, Long groupId, Integer page, Integer pageSize);
+    
+    /**
+     * 置顶/取消置顶会话
+     * @param sessionId 会话ID
+     * @param isTop 是否置顶
+     */
+    void toggleTop(Long sessionId, Boolean isTop);
 }
+
