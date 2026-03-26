@@ -27,7 +27,6 @@ public class ChatMessageServiceImpl implements IChatMessageService {
     private final ChatMessageMapper chatMessageMapper;
     
     @Override
-    @Transactional
     public Long saveUserMessage(Long sessionId, String content) {
         log.info("保存用户消息: sessionId={}, content={}", sessionId, content);
         
@@ -38,8 +37,12 @@ public class ChatMessageServiceImpl implements IChatMessageService {
                 .status(true)
                 .createdAt(LocalDateTime.now())
                 .build();
-        
-        chatMessageMapper.insert(message);
+
+        int inserted = chatMessageMapper.insert(message);
+        if (inserted < 1) {
+            log.error("保存用户消息失败: sessionId={}, content={}", sessionId, content);
+            throw new RuntimeException("保存用户消息失败");
+        }
         log.info("用户消息已保存: messageId={}", message.getId());
         
         return message.getId();

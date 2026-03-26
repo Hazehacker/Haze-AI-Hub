@@ -49,8 +49,9 @@ public class GroupServiceImpl implements IGroupService {
     @Override
     public void deleteGroup(Long id) {
         // 权限校验
-        if(!BaseContext.getCurrentId().equals(groupMapper.selectById(id).getUserId())) {
-            throw new RuntimeException("无权限删除改分组");
+        Group group = groupMapper.selectById(id);
+        if (group == null || !BaseContext.getCurrentId().equals(group.getUserId())) {
+            throw new RuntimeException("无权限删除该分组");
         }
 
         groupMapper.deleteById(id);
@@ -59,7 +60,8 @@ public class GroupServiceImpl implements IGroupService {
     @Override
     public void updateGroup(Long id, GroupDTO groupDTO) {
         // 权限校验
-        if(!BaseContext.getCurrentId().equals(groupMapper.selectById(id).getUserId())) {
+        Group group = groupMapper.selectById(id);
+        if (group == null || !BaseContext.getCurrentId().equals(group.getUserId())) {
             throw new RuntimeException("无权限修改该分组");
         }
 

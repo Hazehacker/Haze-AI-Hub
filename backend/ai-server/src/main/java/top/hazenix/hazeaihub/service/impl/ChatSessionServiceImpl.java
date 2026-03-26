@@ -28,7 +28,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ChatSessionServiceServiceImpl implements IChatSessionService {
+public class ChatSessionServiceImpl implements IChatSessionService {
     
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
