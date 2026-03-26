@@ -18,19 +18,27 @@ import java.util.concurrent.Executor;
 @Configuration
 @EnableAsync
 public class AsyncConfiguration implements AsyncConfigurer {
-    
+
+    int coreCounts = Runtime.getRuntime().availableProcessors();
+    /**
+     * 获取异步任务执行器(IO密集型)
+     * - 网络IO：调用API
+     * - 数据库IO：PostgreSQL 读写
+     * @return
+     */
     @Override
     public Executor getAsyncExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("async-task-");
+        executor.setCorePoolSize(coreCounts * 2);
+        executor.setMaxPoolSize(coreCounts * 8);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("title-gen-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
-        
-        log.info("异步任务线程池已初始化");
+
+        log.info("异步任务线程池已初始化: core={}, max={}, queue={}",
+                 executor.getCorePoolSize(), executor.getMaxPoolSize(), executor.getQueueCapacity());
         return executor;
     }
 }

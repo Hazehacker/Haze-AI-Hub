@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -22,6 +20,7 @@ import top.hazenix.hazeaihub.entity.ChatMessage;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.mapper.ChatMessageMapper;
 import top.hazenix.hazeaihub.mapper.ChatSessionMapper;
+import top.hazenix.hazeaihub.service.AsyncTitleService;
 import top.hazenix.hazeaihub.service.IBailianThinkingService;
 import top.hazenix.hazeaihub.service.IChatMessageService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
@@ -56,6 +55,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
     private final IChatSessionService chatSessionService;
     private final IChatMessageService chatMessageService;
     private final ITitleGenerationService titleGenerationService;
+    private final AsyncTitleService asyncTitleService;
 
     @Value("${spring.ai.dashscope.api-key}")
     private String apiKey;
@@ -211,20 +211,23 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                 .bodyToFlux(DataBuffer.class)
                 // 实时处理：将每个 DataBuffer 转换为字符串并按行拆分
                 .flatMap(dataBuffer -> {
-                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
-                    dataBuffer.read(bytes);
-                    DataBufferUtils.release(dataBuffer);
-                    String content = new String(bytes, StandardCharsets.UTF_8);
-                    
-                    // 按行拆分
-                    String[] lines = content.split("\\r?\\n");
-                    List<String> lineList = new ArrayList<>();
-                    for (String line : lines) {
-                        if (!line.isEmpty()) {
-                            lineList.add(line);
+                    try {
+                        byte[] bytes = new byte[dataBuffer.readableByteCount()];
+                        dataBuffer.read(bytes);
+                        String content = new String(bytes, StandardCharsets.UTF_8);
+
+                        // 按行拆分
+                        String[] lines = content.split("\\r?\\n");
+                        List<String> lineList = new ArrayList<>();
+                        for (String line : lines) {
+                            if (!line.isEmpty()) {
+                                lineList.add(line);
+                            }
                         }
+                        return Flux.fromIterable(lineList);
+                    } finally {
+                        DataBufferUtils.release(dataBuffer);
                     }
-                    return Flux.fromIterable(lineList);
                 })
                 .filter(line -> line.startsWith("data: ") && !line.contains("[DONE]"))
                 .map(line -> {
@@ -285,7 +288,7 @@ public class BailianThinkingServiceProImpl implements IBailianThinkingService {
                             
                             // 如果是新会话，异步生成标题
                             if (isNewSession) {
-                                titleGenerationService.generateAndUpdateTitleAsync(finalSessionId[0]);
+                                asyncTitleService.generateAndUpdateTitleAsync(finalSessionId[0]);
                             }
                             
                             log.info("消息保存成功: sessionId={}", finalSessionId[0]);

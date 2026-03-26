@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @TableName("chat_session")
-public class ChatSession {
+public class  ChatSession {
     @Schema(description = "会话id[主键]")
     private Long id;
 

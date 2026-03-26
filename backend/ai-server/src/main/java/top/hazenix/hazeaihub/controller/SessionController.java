@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.dto.SessionListDTO;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.result.Result;
@@ -30,7 +31,6 @@ public class SessionController {
     
     /**
      * 创建新会话（通常不需要手动调用，由聊天接口自动创建）
-     * @param userId 用户ID
      * @param type 会话类型 (chat/pdf/game/service)
      * @param title 会话标题（可选）
      * @return 包含会话ID的响应
@@ -38,9 +38,12 @@ public class SessionController {
     @PostMapping("/create")
     @Operation(summary = "创建新会话", description = "手动创建会话（通常不需要，由聊天接口自动创建）")
     public Result<Long> createSession(
-            @Parameter(description = "用户ID", required = true) @RequestParam Long userId,
             @Parameter(description = "会话类型", required = true) @RequestParam String type,
             @Parameter(description = "会话标题") @RequestParam(required = false) String title) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null) {
+            return Result.error("用户未登录");
+        }
         ChatSession session = chatSessionService.createSession(userId, type, title);
         return Result.success(session.getId());
     }
@@ -75,7 +78,6 @@ public class SessionController {
     
     /**
      * 获取会话列表
-     * @param userId 用户ID
      * @param type 会话类型（可选）
      * @param groupId 分组ID（可选）
      * @param page 页码
@@ -85,11 +87,14 @@ public class SessionController {
     @GetMapping("/list")
     @Operation(summary = "获取会话列表", description = "获取用户的会话列表，支持分页和筛选")
     public Result<List<SessionListDTO>> getSessionList(
-            @Parameter(description = "用户ID", required = true) @RequestParam Long userId,
             @Parameter(description = "会话类型") @RequestParam(required = false) String type,
             @Parameter(description = "分组ID") @RequestParam(required = false) Long groupId,
             @Parameter(description = "页码") @RequestParam(required = false, defaultValue = "1") Integer page,
             @Parameter(description = "每页数量") @RequestParam(required = false, defaultValue = "20") Integer pageSize) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null) {
+            return Result.error("用户未登录");
+        }
         List<SessionListDTO> sessions = chatSessionService.getSessionList(userId, type, groupId, page, pageSize);
         return Result.success(sessions);
     }
