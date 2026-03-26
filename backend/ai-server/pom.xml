@@ -57,6 +57,13 @@
             <version>${spring-ai-alibaba.version}</version>
         </dependency>
 
+        <!-- Knife4j OpenAPI 3 for Spring Boot 3 -->
+        <dependency>
+            <groupId>com.github.xiaoymin</groupId>
+            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+            <version>4.5.0</version>
+        </dependency>
+
         <!-- RAG: QuestionAnswerAdvisor -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

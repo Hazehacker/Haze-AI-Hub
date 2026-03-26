@@ -9,7 +9,8 @@ public interface IBailianThinkingService {
     Flux<Map<String, String>> chatWithThinking(String userMessage,
                                                Boolean enableThinking,
                                                Integer thinkingBudget,
-                                               String chatId,
+                                               Long sessionId,
+                                               Long groupId,
                                                String model);
 
 }

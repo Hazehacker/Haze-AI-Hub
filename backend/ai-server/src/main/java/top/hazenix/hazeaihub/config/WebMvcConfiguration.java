@@ -41,26 +41,42 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         log.info("开始注册自定义拦截器...");
+        
+        // 管理员拦截器 - 只拦截 /admin/** 路径
         registry.addInterceptor(jwtTokenAdminInterceptor)
-                .addPathPatterns("/admin/**")
-                .excludePathPatterns(
-                        "/doc.html",
-                        "/webjars/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/v3/api-docs/**",
-                        "/swagger-resources/**"
-                );
+                .addPathPatterns("/admin/**");
+        
+        // 用户拦截器 - 只拦截 /api/v1/** 路径，但排除文档相关路径
         registry.addInterceptor(jwtTokenUserInterceptor)
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns(
-                        "/doc.html",
-                        "/webjars/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/v3/api-docs/**",
-                        "/swagger-resources/**"
+                    "/v1/api-docs/**",           // SpringDoc API docs (配置文件中的路径)
+                    "/v3/api-docs/**",           // OpenAPI 3.0 JSON
+                    "/swagger-ui/**",            // Swagger UI 资源
+                    "/swagger-ui.html",          // Swagger UI HTML
+                    "/doc.html",                 // Knife4j UI
+                    "/webjars/**",               // WebJars 静态资源
+                    "/favicon.ico"               // 网站图标
                 );
+    }
+
+    /**
+     * 配置静态资源映射
+     * @param registry
+     */
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        log.info("开始配置静态资源映射...");
+
+        // Knife4j/Swagger UI静态资源
+        registry.addResourceHandler("/doc.html")
+                .addResourceLocations("classpath:/META-INF/resources/");
+
+        registry.addResourceHandler("/webjars/**")
+                .addResourceLocations("classpath:/META-INF/resources/webjars/");
+
+        registry.addResourceHandler("/swagger-ui/**")
+                .addResourceLocations("classpath:/META-INF/resources/webjars/springfox-swagger-ui/");
     }
 
     /**
@@ -75,38 +91,6 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         .title("AI-Hub项目接口文档")
                         .version("2.0")
                         .description("AI-Hub项目接口测试文档"));
-    }
-
-
-
-
-
-
-
-
-
-
-    /**
-     * (knife4j)给doc.html设置静态资源映射
-     * @param registry
-     */
-    @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        log.info("开始设置静态资源映射");
-        
-        // Knife4j 文档页面和静态资源
-        registry.addResourceHandler("/doc.html**", "/*.js", "/*.css", "/*.png", "/*.ico")
-                .addResourceLocations("classpath:/META-INF/resources/");
-        
-        // webjars 资源
-        registry.addResourceHandler("/webjars/**")
-                .addResourceLocations("classpath:/META-INF/resources/webjars/");
-        
-        // Swagger UI 资源
-        registry.addResourceHandler("/swagger-ui.html")
-                .addResourceLocations("classpath:/META-INF/resources/");
-        registry.addResourceHandler("/swagger-ui/**")
-                .addResourceLocations("classpath:/META-INF/resources/swagger-ui/");
     }
 
     /**
