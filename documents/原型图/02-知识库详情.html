@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra - 知识库详情</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #faf9f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f3f0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --accent: #e85d04;
+            --accent-light: #fff4ed;
+            --accent-hover: #d45103;
+            --border: #e8e6e3;
+            --border-light: #f0eeeb;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Noto Serif SC', serif;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-link {
+            padding: 8px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: var(--text-primary);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        /* Main Content */
+        .main {
+            padding: 40px 0;
+        }
+
+        .page-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        .page-nav-item {
+            padding: 8px 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .page-nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .page-nav-item.active {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .page-nav-item.separator {
+            color: var(--text-tertiary);
+            cursor: default;
+        }
+
+        .page-nav-item.separator:hover {
+            background: none;
+            color: var(--text-tertiary);
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 32px;
+        }
+
+        .library-info {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .library-cover {
+            width: 80px;
+            height: 80px;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: 700;
+            font-family: 'Noto Serif SC', serif;
+            box-shadow: var(--shadow-md);
+        }
+
+        .library-details {
+            padding-top: 4px;
+        }
+
+        .library-name {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .library-type {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .library-description {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-bottom: 12px;
+        }
+
+        .library-stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        .stat svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-primary);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* File List */
+        .file-list {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .file-list-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+
+        .file-list-title {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-count {
+            font-size: 12px;
+            padding: 2px 8px;
+            background: var(--text-primary);
+            color: white;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sort-btn:hover {
+            background: white;
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .file-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+
+        .file-icon.pdf {
+            background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+        }
+
+        .file-icon.doc {
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+        }
+
+        .file-icon.image {
+            background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+        }
+
+        .file-icon.audio {
+            background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+        }
+
+        .file-icon.xmind {
+            background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+        }
+
+        .file-icon svg {
+            width: 22px;
+            height: 22px;
+            color: white;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-weight: 500;
+            font-size: 15px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-meta {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            display: flex;
+            gap: 16px;
+        }
+
+        .file-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 16px;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.parsed {
+            background: #d1fae5;
+            color: #059669;
+        }
+
+        .status-badge.parsing {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .status-badge.pending {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
+        .status-badge.failed {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .progress-bar {
+            width: 60px;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .file-item:hover .file-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--border);
+        }
+
+        .action-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .action-btn.danger:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .action-btn.danger:hover svg {
+            color: #dc2626;
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+            color: var(--text-secondary);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 40px;
+        }
+
+        .empty-icon {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 20px;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-icon svg {
+            width: 32px;
+            height: 32px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .empty-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        /* Folder Section */
+        .folder-section {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .folder-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .folder-header:hover {
+            opacity: 0.8;
+        }
+
+        .folder-icon {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .folder-icon svg {
+            width: 16px;
+            height: 16px;
+            color: white;
+        }
+
+        .folder-name {
+            font-weight: 500;
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .folder-count {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            padding: 2px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="#" class="logo">
+                <div class="logo-icon">A</div>
+                <span class="logo-text">Astra</span>
+            </a>
+            <nav class="nav-links">
+                <a href="01-知识库列表.html" class="nav-link active">知识库</a>
+                <a href="02-知识库详情.html" class="nav-link">文档</a>
+                <a href="03-文件上传.html" class="nav-link">上传</a>
+                <a href="04-知识问答.html" class="nav-link">问答</a>
+                <a href="05-会话历史.html" class="nav-link">会话</a>
+            </nav>
+            <div class="user-avatar">BZ</div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="page-nav">
+                <a href="01-知识库列表.html" class="page-nav-item">我的知识库</a>
+                <span class="page-nav-item separator">›</span>
+                <span class="page-nav-item active">产品规划文档</span>
+            </div>
+
+            <div class="page-header">
+                <div class="library-info">
+                    <div class="library-cover">P</div>
+                    <div class="library-details">
+                        <h1 class="library-name">
+                            产品规划文档
+                            <span class="library-type">个人</span>
+                        </h1>
+                        <p class="library-description">包含Q1-Q4产品路线图、技术架构设计、前端实现规划等核心文档</p>
+                        <div class="library-stats">
+                            <div class="stat">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                                12 个文档
+                            </div>
+                            <div class="stat">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="3" y1="9" x2="21" y2="9"/>
+                                    <line x1="9" y1="21" x2="9" y2="9"/>
+                                </svg>
+                                847 个分片
+                            </div>
+                            <div class="stat">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <polyline points="12 6 12 12 16 14"/>
+                                </svg>
+                                3天前更新
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <a href="03-文件上传.html" class="btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        上传文档
+                    </a>
+                    <a href="04-知识问答.html" class="btn-secondary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        开始问答
+                    </a>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <span class="tab active">全部文档</span>
+                <span class="tab">文件夹</span>
+                <span class="tab">最近上传</span>
+            </div>
+
+            <div class="file-list">
+                <div class="file-list-header">
+                    <div class="file-list-title">
+                        文档列表
+                        <span class="file-count">12</span>
+                    </div>
+                    <button class="sort-btn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <polyline points="19 12 12 19 5 12"/>
+                        </svg>
+                        按时间排序
+                    </button>
+                </div>
+
+                <!-- Parsed File -->
+                <div class="file-item">
+                    <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">产品规划文档-Q1.md</div>
+                        <div class="file-meta">
+                            <span>2.4 MB</span>
+                            <span>PDF</span>
+                            <span>2026-03-25 上传</span>
+                        </div>
+                    </div>
+                    <div class="file-status">
+                        <span class="status-badge parsed">已解析</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" title="预览">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="问答">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="删除">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Parsing File -->
+                <div class="file-item">
+                    <div class="file-icon doc">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">技术架构文档v2.docx</div>
+                        <div class="file-meta">
+                            <span>1.8 MB</span>
+                            <span>Word</span>
+                            <span>2026-03-26 上传</span>
+                        </div>
+                    </div>
+                    <div class="file-status">
+                        <span class="status-badge parsing">解析中</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 67%;"></div>
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" title="取消">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Pending File -->
+                <div class="file-item">
+                    <div class="file-icon image">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">架构设计图.png</div>
+                        <div class="file-meta">
+                            <span>856 KB</span>
+                            <span>PNG</span>
+                            <span>2026-03-26 上传</span>
+                        </div>
+                    </div>
+                    <div class="file-status">
+                        <span class="status-badge pending">等待中</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn danger" title="取消上传">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="15" y1="9" x2="9" y2="15"/>
+                                <line x1="9" y1="9" x2="15" y2="15"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Failed File -->
+                <div class="file-item">
+                    <div class="file-icon xmind">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="16"/>
+                            <line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">项目规划脑图.xmind</div>
+                        <div class="file-meta">
+                            <span>245 KB</span>
+                            <span>XMind</span>
+                            <span>2026-03-24 上传</span>
+                        </div>
+                    </div>
+                    <div class="file-status">
+                        <span class="status-badge failed">解析失败</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" title="重试">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="删除">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- More Files -->
+                <div class="file-item">
+                    <div class="file-icon pdf">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">前端实现规划.pdf</div>
+                        <div class="file-meta">
+                            <span>3.2 MB</span>
+                            <span>PDF</span>
+                            <span>2026-03-23 上传</span>
+                        </div>
+                    </div>
+                    <div class="file-status">
+                        <span class="status-badge parsed">已解析</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" title="预览">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="问答">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="删除">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="file-item">
+                    <div class="file-icon audio">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18V5l12-2v13"/>
+                            <circle cx="6" cy="18" r="3"/>
+                            <circle cx="18" cy="16" r="3"/>
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">产品会议录音.mp3</div>
+                        <div class="file-meta">
+                            <span>45.6 MB</span>
+                            <span>音频</span>
+                            <span>2026-03-22 上传</span>
+                        </div>
+                    </div>
+                    <div class="file-status">
+                        <span class="status-badge parsed">已解析</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" title="预览">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn" title="问答">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn danger" title="删除">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // File item click handler
+        document.querySelectorAll('.file-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                // Don't trigger if clicking action buttons
+                if (e.target.closest('.file-actions') || e.target.closest('.file-status')) {
+                    return;
+                }
+                // Could navigate to file detail
+                const fileName = this.querySelector('.file-name').textContent;
+                console.log('Open file:', fileName);
+            });
+        });
+    </script>
+</body>
+</html>

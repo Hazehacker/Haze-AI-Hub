@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra - 会话历史</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #faf9f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f3f0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --accent: #e85d04;
+            --accent-light: #fff4ed;
+            --accent-hover: #d45103;
+            --border: #e8e6e3;
+            --border-light: #f0eeeb;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Noto Serif SC', serif;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-link {
+            padding: 8px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: var(--text-primary);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        /* Main Content */
+        .main {
+            padding: 40px 0;
+        }
+
+        .page-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
+
+        .page-nav-item {
+            padding: 8px 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .page-nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .page-nav-item.active {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .page-nav-item.separator {
+            color: var(--text-tertiary);
+            cursor: default;
+        }
+
+        .page-nav-item.separator:hover {
+            background: none;
+            color: var(--text-tertiary);
+        }
+
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        /* Filter Tabs */
+        .filter-tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--bg-secondary);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+        }
+
+        .filter-tab {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+        }
+
+        .filter-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .filter-tab.active {
+            background: var(--text-primary);
+            color: white;
+        }
+
+        /* Session List */
+        .session-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .session-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .session-card:hover {
+            border-color: transparent;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+
+        .session-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .session-icon.astra {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .session-icon.chat {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .session-icon.game {
+            background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%);
+        }
+
+        .session-icon svg {
+            width: 24px;
+            height: 24px;
+            color: white;
+        }
+
+        .session-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .session-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .session-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .session-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .session-type {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .session-type.astra {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .session-type.chat {
+            background: #d1fae5;
+            color: #059669;
+        }
+
+        .session-type.game {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .session-time {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+        }
+
+        .session-preview {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .session-meta {
+            display: flex;
+            gap: 20px;
+        }
+
+        .session-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        .session-stat svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .session-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .session-card:hover .session-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            width: 34px;
+            height: 34px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-primary);
+        }
+
+        .action-btn.danger:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .action-btn.danger:hover svg {
+            color: #dc2626;
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+            color: var(--text-secondary);
+        }
+
+        .pin-btn.pinned {
+            background: var(--accent-light);
+            border-color: var(--accent);
+        }
+
+        .pin-btn.pinned svg {
+            color: var(--accent);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+        }
+
+        .empty-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-icon svg {
+            width: 40px;
+            height: 40px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Date Group */
+        .date-group {
+            margin-bottom: 24px;
+        }
+
+        .date-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+            padding-left: 4px;
+        }
+
+        /* Search and Actions Bar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            gap: 16px;
+        }
+
+        .search-box {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-family: inherit;
+            background: var(--bg-secondary);
+            transition: all 0.2s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--text-primary);
+            background: white;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            color: var(--text-tertiary);
+        }
+
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sort-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sort-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .sort-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="#" class="logo">
+                <div class="logo-icon">A</div>
+                <span class="logo-text">Astra</span>
+            </a>
+            <nav class="nav-links">
+                <a href="01-知识库列表.html" class="nav-link">知识库</a>
+                <a href="02-知识库详情.html" class="nav-link">文档</a>
+                <a href="03-文件上传.html" class="nav-link">上传</a>
+                <a href="04-知识问答.html" class="nav-link">问答</a>
+                <a href="05-会话历史.html" class="nav-link active">会话</a>
+            </nav>
+            <div class="user-avatar">BZ</div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="page-nav">
+                <span class="page-nav-item active">全部会话</span>
+            </div>
+
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">会话历史</h1>
+                    <p class="page-subtitle">管理您的所有对话记录，包括 Astra 知识问答和多模态对话</p>
+                </div>
+            </div>
+
+            <div class="toolbar">
+                <div class="filter-tabs">
+                    <button class="filter-tab active">全部</button>
+                    <button class="filter-tab">Astra</button>
+                    <button class="filter-tab">AI对话</button>
+                    <button class="filter-tab">游戏</button>
+                </div>
+                <div class="toolbar-right">
+                    <div class="search-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" placeholder="搜索会话...">
+                    </div>
+                    <button class="sort-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <polyline points="19 12 12 19 5 12"/>
+                        </svg>
+                        最近活跃
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pinned Sessions -->
+            <div class="date-group">
+                <div class="date-label">置顶会话</div>
+                <div class="session-list">
+                    <div class="session-card">
+                        <div class="session-icon astra">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">Q1产品目标咨询</span>
+                                    <span class="session-type astra">Astra</span>
+                                </div>
+                                <span class="session-time">3分钟前</span>
+                            </div>
+                            <p class="session-preview">用户：Q1有哪些核心目标？ AI：根据产品规划文档，Q1的核心目标是...</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    5 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                    </svg>
+                                    产品规划文档
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn pinned" title="取消置顶">
+                                <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Today -->
+            <div class="date-group">
+                <div class="date-label">今天</div>
+                <div class="session-list">
+                    <div class="session-card">
+                        <div class="session-icon astra">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">技术架构问题</span>
+                                    <span class="session-type astra">Astra</span>
+                                </div>
+                                <span class="session-time">14:32</span>
+                            </div>
+                            <p class="session-preview">用户：技术选型有哪些？ AI：技术栈包括 Spring Boot 3.x、PostgreSQL...</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    12 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                    </svg>
+                                    技术文档库
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn" title="置顶">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="session-card">
+                        <div class="session-icon chat">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">帮忙写一个快速排序算法</span>
+                                    <span class="session-type chat">AI对话</span>
+                                </div>
+                                <span class="session-time">11:20</span>
+                            </div>
+                            <p class="session-preview">用户：帮我写一个快速排序算法 AI：当然可以，以下是Python实现的快速排序...</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    8 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M12 6v6l4 2"/>
+                                    </svg>
+                                    qwen-max
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn" title="置顶">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Yesterday -->
+            <div class="date-group">
+                <div class="date-label">昨天</div>
+                <div class="session-list">
+                    <div class="session-card">
+                        <div class="session-icon astra">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">前端实现细节</span>
+                                    <span class="session-type astra">Astra</span>
+                                </div>
+                                <span class="session-time">18:45</span>
+                            </div>
+                            <p class="session-preview">用户：前端实现计划是什么？ AI：根据文档，前端采用 Vue 3 + TypeScript...</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    8 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                    </svg>
+                                    产品规划文档
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn" title="置顶">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="session-card">
+                        <div class="session-icon game">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polygon points="10 8 16 12 10 16 10 8"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">哄哄模拟器</span>
+                                    <span class="session-type game">游戏</span>
+                                </div>
+                                <span class="session-time">15:30</span>
+                            </div>
+                            <p class="session-preview">AI：哼，我才不会原谅你！除非你给我买奶茶... 原谅值: 12%</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    23 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <path d="M12 6v6l4 2"/>
+                                    </svg>
+                                    qwen-max
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn" title="置顶">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Last Week -->
+            <div class="date-group">
+                <div class="date-label">更早</div>
+                <div class="session-list">
+                    <div class="session-card">
+                        <div class="session-icon astra">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">数据库设计讨论</span>
+                                    <span class="session-type astra">Astra</span>
+                                </div>
+                                <span class="session-time">3天前</span>
+                            </div>
+                            <p class="session-preview">用户：数据库是如何设计的？ AI：系统采用 PostgreSQL，主要表包括...</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    15 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                    </svg>
+                                    技术文档库
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn" title="置顶">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="session-card">
+                        <div class="session-icon astra">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div class="session-content">
+                            <div class="session-header">
+                                <div class="session-title-row">
+                                    <span class="session-title">向量检索原理</span>
+                                    <span class="session-type astra">Astra</span>
+                                </div>
+                                <span class="session-time">上周</span>
+                            </div>
+                            <p class="session-preview">用户：RAG是如何工作的？ AI：RAG（检索增强生成）通过向量检索...</p>
+                            <div class="session-meta">
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                    6 条消息
+                                </span>
+                                <span class="session-stat">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                        <polyline points="14 2 14 8 20 8"/>
+                                    </svg>
+                                    技术文档库
+                                </span>
+                            </div>
+                        </div>
+                        <div class="session-actions">
+                            <button class="action-btn pin-btn" title="置顶">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2L12 22"/>
+                                    <path d="M5 12L12 2L19 12"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn danger" title="删除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Filter tabs
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelector('.filter-tab.active').classList.remove('active');
+                this.classList.add('active');
+            });
+        });
+
+        // Session card click
+        document.querySelectorAll('.session-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Don't navigate if clicking action buttons
+                if (e.target.closest('.session-actions')) {
+                    return;
+                }
+                console.log('Open session');
+            });
+        });
+
+        // Pin button
+        document.querySelectorAll('.pin-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                this.classList.toggle('pinned');
+                if (this.classList.contains('pinned')) {
+                    this.title = '取消置顶';
+                } else {
+                    this.title = '置顶';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

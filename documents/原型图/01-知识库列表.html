@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astra - 知识库列表</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #faf9f7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f3f0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --accent: #e85d04;
+            --accent-light: #fff4ed;
+            --accent-hover: #d45103;
+            --border: #e8e6e3;
+            --border-light: #f0eeeb;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #333 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Noto Serif SC', serif;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-link {
+            padding: 8px 16px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: var(--text-primary);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .user-avatar:hover {
+            transform: scale(1.05);
+        }
+
+        /* Main Content */
+        .main {
+            padding: 48px 0;
+        }
+
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 40px;
+        }
+
+        .page-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        /* Create Button */
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: var(--text-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary:hover {
+            background: #333;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-primary svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Library Grid */
+        .library-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .library-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .library-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent) 0%, #f4a261 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .library-card:hover {
+            border-color: transparent;
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-4px);
+        }
+
+        .library-card:hover::before {
+            opacity: 1;
+        }
+
+        .library-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .library-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .library-icon.personal {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .library-icon.team {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .library-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .library-name {
+            font-weight: 600;
+            font-size: 17px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .library-type {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .library-type.personal {
+            background: #ede9fe;
+            color: #7c3aed;
+        }
+
+        .library-type.team {
+            background: #d1fae5;
+            color: #059669;
+        }
+
+        .library-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .library-meta {
+            display: flex;
+            gap: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-light);
+            margin-top: 16px;
+        }
+
+        .library-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-tertiary);
+        }
+
+        .library-stat svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+        }
+
+        .library-actions {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .library-card:hover .library-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .action-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .action-btn svg {
+            width: 16px;
+            height: 16px;
+            color: var(--text-secondary);
+        }
+
+        .action-btn.danger:hover {
+            background: #fef2f2;
+        }
+
+        .action-btn.danger:hover svg {
+            color: #dc2626;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 80px 40px;
+            background: var(--bg-secondary);
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-lg);
+        }
+
+        .empty-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 24px;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-icon svg {
+            width: 40px;
+            height: 40px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 480px;
+            box-shadow: var(--shadow-lg);
+            transform: scale(0.95) translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal-header {
+            padding: 24px 24px 0;
+        }
+
+        .modal-title {
+            font-family: 'Noto Serif SC', serif;
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-family: inherit;
+            transition: all 0.2s;
+            background: var(--bg-primary);
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--text-primary);
+            background: white;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .modal-footer {
+            padding: 0 24px 24px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            padding: 12px 24px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        /* Page Navigation */
+        .page-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 32px;
+        }
+
+        .page-nav-item {
+            padding: 8px 16px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .page-nav-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .page-nav-item.active {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <a href="#" class="logo">
+                <div class="logo-icon">A</div>
+                <span class="logo-text">Astra</span>
+            </a>
+            <nav class="nav-links">
+                <a href="01-知识库列表.html" class="nav-link">知识库</a>
+                <a href="02-知识库详情.html" class="nav-link">文档</a>
+                <a href="03-文件上传.html" class="nav-link">上传</a>
+                <a href="04-知识问答.html" class="nav-link active">问答</a>
+                <a href="05-会话历史.html" class="nav-link">会话</a>
+            </nav>
+            <div class="user-avatar">BZ</div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <div class="page-nav">
+                <a href="01-知识库列表.html" class="page-nav-item">我的知识库</a>
+                <span class="page-nav-item" style="color: var(--text-tertiary);">›</span>
+                <a href="02-知识库详情.html" class="page-nav-item active">产品规划文档</a>
+                <span class="page-nav-item" style="color: var(--text-tertiary);">›</span>
+                <span class="page-nav-item" style="color: var(--text-tertiary);">知识问答</span>
+            </div>
+
+            <div class="page-header">
+                <div>
+                    <h1 class="page-title">产品规划文档</h1>
+                    <p class="page-subtitle">基于 12 份文档的智能问答助手</p>
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div style="background: var(--bg-secondary); border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden;">
+                <!-- Chat Messages -->
+                <div style="padding: 24px; min-height: 400px; max-height: 500px; overflow-y: auto;" id="chatMessages">
+                    <!-- User Message -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 24px; justify-content: flex-end;">
+                        <div style="max-width: 70%; background: var(--text-primary); color: white; padding: 14px 18px; border-radius: 18px 18px 4px 18px;">
+                            <p style="font-size: 15px; line-height: 1.5;">产品的Q1目标是什么？</p>
+                        </div>
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; flex-shrink: 0;">BZ</div>
+                    </div>
+
+                    <!-- AI Response -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+                        <div style="width: 36px; height: 36px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; border-radius: 8px; flex-shrink: 0;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div style="max-width: 70%; background: var(--bg-tertiary); padding: 16px 20px; border-radius: 4px 18px 18px 18px;">
+                            <p style="font-size: 15px; line-height: 1.7; color: var(--text-primary); margin-bottom: 12px;">根据产品规划文档，Q1的核心目标如下：</p>
+                            <div style="background: white; border-radius: 8px; padding: 14px; margin-bottom: 12px; border-left: 3px solid var(--accent);">
+                                <p style="font-size: 14px; line-height: 1.6;"><strong>1. 基础功能完善</strong></p>
+                                <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">完成用户认证体系、基础对话功能和会话管理模块</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 14px; margin-bottom: 12px; border-left: 3px solid #667eea;">
+                                <p style="font-size: 14px; line-height: 1.6;"><strong>2. AI模型集成</strong></p>
+                                <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">集成阿里云DashScope API，支持多种AI模型切换</p>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 14px; border-left: 3px solid #11998e;">
+                                <p style="font-size: 14px; line-height: 1.6;"><strong>3. 知识库MVP</strong></p>
+                                <p style="font-size: 14px; color: var(--text-secondary); margin-top: 4px;">实现文档上传、解析和基于RAG的智能问答功能</p>
+                            </div>
+                            <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 12px; display: flex; align-items: center; gap: 4px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                                参考: 产品规划文档-Q1.md
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- User Message 2 -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 24px; justify-content: flex-end;">
+                        <div style="max-width: 70%; background: var(--text-primary); color: white; padding: 14px 18px; border-radius: 18px 18px 4px 18px;">
+                            <p style="font-size: 15px; line-height: 1.5;">技术选型有哪些？</p>
+                        </div>
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; flex-shrink: 0;">BZ</div>
+                    </div>
+
+                    <!-- AI Response 2 -->
+                    <div style="display: flex; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; border-radius: 8px; flex-shrink: 0;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                <path d="M2 17l10 5 10-5"/>
+                                <path d="M2 12l10 5 10-5"/>
+                            </svg>
+                        </div>
+                        <div style="max-width: 70%; background: var(--bg-tertiary); padding: 16px 20px; border-radius: 4px 18px 18px 18px;">
+                            <p style="font-size: 15px; line-height: 1.7; color: var(--text-primary); margin-bottom: 12px;">技术选型如下：</p>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                                <thead>
+                                    <tr style="background: white;">
+                                        <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600;">分类</th>
+                                        <th style="text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600;">技术栈</th>
+                                    </tr>
+                                </thead>
+                                <tbody style="background: white;">
+                                    <tr>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-light);">后端框架</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-light);">Spring Boot 3.x + Spring AI Alibaba</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-light);">数据库</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-light);">PostgreSQL + pgvector</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-light);">向量模型</td>
+                                        <td style="padding: 8px 12px; border-bottom: 1px solid var(--border-light);">text-embedding-v3 (1024维)</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 12px;">前端框架</td>
+                                        <td style="padding: 8px 12px;">Vue 3 + TypeScript</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p style="font-size: 12px; color: var(--text-tertiary); margin-top: 12px; display: flex; align-items: center; gap: 4px;">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                                参考: 技术架构文档.md · 系统设计.md
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input -->
+                <div style="padding: 16px 24px; border-top: 1px solid var(--border); background: var(--bg-secondary);">
+                    <div style="display: flex; gap: 12px; align-items: flex-end;">
+                        <div style="flex: 1; position: relative;">
+                            <input type="text" placeholder="输入您的问题..." style="width: 100%; padding: 14px 18px; border: 1px solid var(--border); border-radius: 24px; font-size: 15px; font-family: inherit; background: var(--bg-primary); transition: all 0.2s;" onfocus="this.style.borderColor='var(--text-primary)'; this.style.background='white';" onblur="this.style.borderColor='var(--border)'; this.style.background='var(--bg-primary)';">
+                        </div>
+                        <button style="padding: 14px 28px; background: var(--accent); color: white; border: none; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; font-family: inherit;" onmouseover="this.style.background='var(--accent-hover)';" onmouseout="this.style.background='var(--accent)';">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                            发送
+                        </button>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 16px; margin-top: 12px; padding-left: 8px;">
+                        <span style="font-size: 12px; color: var(--text-tertiary); display: flex; align-items: center; gap: 6px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 16v-4"/>
+                                <path d="M12 8h.01"/>
+                            </svg>
+                            基于 RAG 检索 + ReRank 排序
+                        </span>
+                        <span style="font-size: 12px; color: var(--text-tertiary);">|</span>
+                        <span style="font-size: 12px; color: var(--text-tertiary);">使用模型: qwen-max</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retrieved Context Preview -->
+            <div style="margin-top: 24px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                    <h3 style="font-size: 14px; font-weight: 600; color: var(--text-primary);">检索上下文</h3>
+                    <span style="font-size: 11px; padding: 2px 8px; background: var(--accent-light); color: var(--accent); border-radius: 4px;">Top 5</span>
+                </div>
+                <div style="display: grid; gap: 8px;">
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; display: flex; gap: 12px; align-items: flex-start;">
+                        <span style="font-size: 11px; padding: 2px 8px; background: #dbeafe; color: #1d4ed8; border-radius: 4px; font-weight: 600; flex-shrink: 0;">#1</span>
+                        <div style="flex: 1;">
+                            <p style="font-size: 13px; color: var(--text-primary); line-height: 1.6;">Q1重点关注<strong>用户认证体系</strong>、<strong>基础对话功能</strong>和<strong>会话管理</strong>三大模块的建设，确保产品具备完整的用户交互能力...</p>
+                            <p style="font-size: 11px; color: var(--text-tertiary); margin-top: 6px;">产品规划文档-Q1.md · 相关度 0.94</p>
+                        </div>
+                    </div>
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; display: flex; gap: 12px; align-items: flex-start;">
+                        <span style="font-size: 11px; padding: 2px 8px; background: #dbeafe; color: #1d4ed8; border-radius: 4px; font-weight: 600; flex-shrink: 0;">#2</span>
+                        <div style="flex: 1;">
+                            <p style="font-size: 13px; color: var(--text-primary); line-height: 1.6;">技术架构采用<strong>Spring Boot 3.x</strong>作为后端框架，集成<strong>Spring AI Alibaba</strong>实现AI能力的统一封装...</p>
+                            <p style="font-size: 11px; color: var(--text-tertiary); margin-top: 6px;">技术架构文档.md · 相关度 0.89</p>
+                        </div>
+                    </div>
+                    <div style="background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; display: flex; gap: 12px; align-items: flex-start;">
+                        <span style="font-size: 11px; padding: 2px 8px; background: #dbeafe; color: #1d4ed8; border-radius: 4px; font-weight: 600; flex-shrink: 0;">#3</span>
+                        <div style="flex: 1;">
+                            <p style="font-size: 13px; color: var(--text-primary); line-height: 1.6;">数据库选型<strong>PostgreSQL</strong>配合<strong>pgvector</strong>扩展，零额外成本实现向量检索能力...</p>
+                            <p style="font-size: 11px; color: var(--text-tertiary); margin-top: 6px;">数据库设计.md · 相关度 0.85</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Simple interaction demo
+        const input = document.querySelector('input');
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.trim()) {
+                alert('消息发送: ' + this.value);
+                this.value = '';
+            }
+        });
+    </script>
+</body>
+</html>
