@@ -35,7 +35,22 @@ const router = createRouter({
     {
       path: '/astra',
       name: 'Astra',
-      component: () => import('../views/NoteAsk.vue')
+      component: () => import('../views/astra/AstraLibraryList.vue')
+    },
+    {
+      path: '/astra/library/:id',
+      name: 'AstraLibrary',
+      component: () => import('../views/astra/AstraLibraryDetail.vue')
+    },
+    {
+      path: '/astra/library/:id/upload',
+      name: 'AstraUpload',
+      component: () => import('../views/astra/AstraUpload.vue')
+    },
+    {
+      path: '/astra/chat/:libraryId',
+      name: 'AstraChat',
+      component: () => import('../views/astra/AstraChat.vue')
     },
     {
       path: '/game',

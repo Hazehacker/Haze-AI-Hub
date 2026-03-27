@@ -321,4 +321,303 @@ export const chatAPI = {
       return []
     }
   }
-} 
+}
+
+// Astra 知识库 API
+export const astraAPI = {
+  // 创建知识库
+  async createLibrary(data) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/libraries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'authentication': token || ''
+        },
+        body: JSON.stringify(data)
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      } else {
+        throw new Error(result.msg || '创建知识库失败')
+      }
+    } catch (error) {
+      console.error('创建知识库失败:', error)
+      throw error
+    }
+  },
+
+  // 获取知识库列表
+  async getLibraries(keyword = '', page = 0, size = 20) {
+    try {
+      const token = getToken()
+      const params = new URLSearchParams({ page, size })
+      if (keyword) params.append('keyword', keyword)
+      const response = await fetch(`${BASE_URL}/astra/libraries?${params}`, {
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data || []
+      }
+      return []
+    } catch (error) {
+      console.error('获取知识库列表失败:', error)
+      return []
+    }
+  },
+
+  // 获取知识库详情
+  async getLibrary(id) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/libraries/${id}`, {
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      }
+      return null
+    } catch (error) {
+      console.error('获取知识库详情失败:', error)
+      return null
+    }
+  },
+
+  // 更新知识库
+  async updateLibrary(id, data) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/libraries/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'authentication': token || ''
+        },
+        body: JSON.stringify(data)
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      }
+      return null
+    } catch (error) {
+      console.error('更新知识库失败:', error)
+      throw error
+    }
+  },
+
+  // 删除知识库
+  async deleteLibrary(id) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/libraries/${id}`, {
+        method: 'DELETE',
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('删除知识库失败:', error)
+      return false
+    }
+  },
+
+  // 置顶/取消置顶知识库
+  async toggleTop(id) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/libraries/${id}/toggle-top`, {
+        method: 'PUT',
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      }
+      return null
+    } catch (error) {
+      console.error('切换置顶状态失败:', error)
+      return null
+    }
+  },
+
+  // 上传文件
+  async uploadFile(file, libraryId, onProgress) {
+    try {
+      const token = getToken()
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('libraryId', libraryId)
+
+      const response = await fetch(`${BASE_URL}/astra/media`, {
+        method: 'POST',
+        headers: { 'authentication': token || '' },
+        body: formData
+      })
+
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      } else {
+        throw new Error(result.msg || '上传文件失败')
+      }
+    } catch (error) {
+      console.error('上传文件失败:', error)
+      throw error
+    }
+  },
+
+  // 获取知识库下的文件列表
+  async getMediaList(libraryId, status = '', page = 0, size = 20) {
+    try {
+      const token = getToken()
+      const params = new URLSearchParams({ page, size })
+      if (status) params.append('status', status)
+      const response = await fetch(`${BASE_URL}/astra/libraries/${libraryId}/media?${params}`, {
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data || []
+      }
+      return []
+    } catch (error) {
+      console.error('获取文件列表失败:', error)
+      return []
+    }
+  },
+
+  // 获取文件详情
+  async getMedia(id) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/media/${id}`, {
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      }
+      return null
+    } catch (error) {
+      console.error('获取文件详情失败:', error)
+      return null
+    }
+  },
+
+  // 获取文件解析状态
+  async getMediaStatus(id) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/media/${id}/status`, {
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data
+      }
+      return null
+    } catch (error) {
+      console.error('获取文件状态失败:', error)
+      return null
+    }
+  },
+
+  // 删除文件
+  async deleteMedia(id) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/media/${id}`, {
+        method: 'DELETE',
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('删除文件失败:', error)
+      return false
+    }
+  },
+
+  // 订阅解析进度 SSE
+  subscribeParseProgress(mediaId, callbacks) {
+    const token = getToken()
+    const eventSource = new EventSource(`${BASE_URL}/astra/media/${mediaId}/stream`, {
+      headers: { 'authentication': token || '' }
+    })
+
+    eventSource.addEventListener('progress', (e) => {
+      if (callbacks.onProgress) {
+        callbacks.onProgress(JSON.parse(e.data))
+      }
+    })
+
+    eventSource.addEventListener('complete', (e) => {
+      if (callbacks.onComplete) {
+        callbacks.onComplete(JSON.parse(e.data))
+      }
+      eventSource.close()
+    })
+
+    eventSource.addEventListener('error', (e) => {
+      if (callbacks.onError) {
+        callbacks.onError(e)
+      }
+      eventSource.close()
+    })
+
+    return eventSource
+  },
+
+  // 知识问答
+  async chat(libraryId, prompt, sessionId = null) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'authentication': token || ''
+        },
+        body: JSON.stringify({ libraryId, prompt, sessionId })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      return response.body.getReader()
+    } catch (error) {
+      console.error('知识问答失败:', error)
+      throw error
+    }
+  },
+
+  // 获取会话历史消息
+  async getSessionMessages(sessionId) {
+    try {
+      const token = getToken()
+      const response = await fetch(`${BASE_URL}/astra/sessions/${sessionId}/messages`, {
+        headers: { 'authentication': token || '' }
+      })
+      const result = await response.json()
+      if (result.code === 200) {
+        return result.data || []
+      }
+      return []
+    } catch (error) {
+      console.error('获取会话消息失败:', error)
+      return []
+    }
+  }
+}
