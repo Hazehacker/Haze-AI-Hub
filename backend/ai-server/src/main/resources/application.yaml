@@ -63,6 +63,35 @@ springdoc:
 knife4j:
   enable: true
   production: false
+
+# Astra 知识库配置
+astra:
+  enabled: true
+  upload:
+    max-file-size: 100
+    allowed-types:
+      - application/pdf
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - image/jpeg
+      - image/png
+      - image/gif
+      - image/webp
+      - audio/mpeg
+      - audio/wav
+      - application/x-xmind
+      - text/plain
+  embedding:
+    model: text-embedding-v3
+    dimensions: 1024
+    max-tokens: 8192
+  redis-stream:
+    queue-name: astra:parse:queue
+    dlq-name: astra:parse:dlq
+    consumer-group: astra-parse-group
+    consumer-name-prefix: consumer-
+    max-retries: 3
+    retry-delay-ms: 5000
+    block-timeout-ms: 5000
   setting:
     language: zh-cn
     enable-swagger-models: true
