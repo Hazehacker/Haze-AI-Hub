@@ -3,6 +3,7 @@ package top.hazenix.hazeaihub.handler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import top.hazenix.hazeaihub.exception.BusinessException;
 import top.hazenix.hazeaihub.result.Result;
 
 
@@ -19,8 +20,19 @@ public class GlobalExceptionHandler {
      * @return
      */
     @ExceptionHandler
+    public Result exceptionHandler(BusinessException ex){
+        log.error("业务异常：{}", ex.getMessage());
+        return Result.error(ex.getCode(), ex.getMessage());
+    }
+
+    /**
+     * 捕获其他运行时异常
+     * @param ex
+     * @return
+     */
+    @ExceptionHandler
     public Result exceptionHandler(RuntimeException ex){
-        log.error("异常信息：{}", ex.getMessage());
+        log.error("异常信息：{}", ex.getMessage(), ex);
         return Result.error(ex.getMessage());
     }
 

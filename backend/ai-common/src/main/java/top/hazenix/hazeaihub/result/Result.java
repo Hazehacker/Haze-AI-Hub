@@ -35,4 +35,11 @@ public class Result<T> implements Serializable {
         return result;
     }
 
+    public static <T> Result<T> error(String code, String msg) {
+        Result result = new Result();
+        result.code = Integer.parseInt(code);
+        result.msg = msg;
+        return result;
+    }
+
 }

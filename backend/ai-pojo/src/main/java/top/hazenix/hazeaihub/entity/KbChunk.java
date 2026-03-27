@@ -1,6 +1,7 @@
 package top.hazenix.hazeaihub.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -11,8 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import top.hazenix.hazeaihub.handler.JsonTypeHandler;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -52,7 +52,7 @@ public class KbChunk {
     private Integer chunkIndex;
 
     @Schema(description = "扩展元信息")
-    @JdbcTypeCode(SqlTypes.JSON)
+    @TableField(typeHandler = JsonTypeHandler.class)
     private Map<String, Object> metadata;
 
     @Schema(description = "创建时间")
