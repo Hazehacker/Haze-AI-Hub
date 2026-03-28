@@ -216,7 +216,11 @@ const loadChat = async (chatId) => {
   currentChatId.value = chatId
   try {
     const messages = await chatAPI.getChatMessages(chatId, 'service')
-    currentMessages.value = messages.map(msg => ({
+    // 按照创建时间排序，确保消息按时间顺序显示
+    const sortedMessages = (messages || []).sort((a, b) => {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+    currentMessages.value = sortedMessages.map(msg => ({
       ...msg,
       isMarkdown: msg.role === 'assistant'  // 为助手消息添加 Markdown 标记
     }))

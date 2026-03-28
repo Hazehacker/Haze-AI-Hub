@@ -130,10 +130,13 @@ router.beforeEach(async (to, from, next) => {
       try {
         await userStore.getUserInfo()
       } catch (error) {
-        // 获取用户信息失败，清除 token，并根据来源路由决定跳转逻辑，
-        // 避免在首次直接访问受限页面（from.name 为空）时出现空白页。
-        await userStore.logout()
-        ElMessage.error('登录已过期，请重新登录')
+        // 获取用户信息失败，清除本地状态，但保留 Cookie 中的 token
+        // 这样用户刷新页面时可以重新尝试获取，避免因为网络波动被强制登出
+        console.warn('获取用户信息失败:', error)
+        userStore.token = ''
+        userStore.userInfo = null
+        
+        ElMessage.error('登录状态验证失败，请重新登录')
         window.dispatchEvent(new CustomEvent('open-login-dialog'))
         if (from.name) {
           // 有来源页时，留在原页面

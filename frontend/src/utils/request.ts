@@ -2,6 +2,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken } from '@/utils/auth'
 import { getBlogApiBaseURL } from '@/utils/apiConfig'
+import { useUserStore } from '@/stores/user'
 
 const request = axios.create({
   baseURL: getBlogApiBaseURL(),
@@ -44,18 +45,26 @@ request.interceptors.response.use(
       if (status === 500) {
         ElMessage.error('服务端内部错误，请稍后重试')
       } else if (status === 401) {
-        ElMessage.error('未授权，请重新登录')
+        // 401 未授权错误 - 提示用户登录
+        const userStore = useUserStore()
+        ElMessage.error('请先登录')
+        // 清除本地认证信息
+        userStore.logout()
+        // 触发全局登录对话框
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('open-login-dialog'))
+        }, 100)
       } else if (status === 403) {
         ElMessage.error('权限不足')
       } else {
         ElMessage.error(errorData?.message || errorData?.error || `请求失败 (${status})`)
       }
     } else if (error?.code === 'ERR_NETWORK') {
-      ElMessage.error('网络请求失败，请检查网络连接')
+      // ElMessage.error('网络请求失败，请检查网络连接')
     } else if (error?.message?.includes('timeout')) {
       ElMessage.error('请求超时，请检查网络连接')
     } else {
-      ElMessage.error('网络请求失败，请检查网络连接')
+      // ElMessage.error('网络请求失败，请检查网络连接')
     }
     return Promise.reject(error)
   },

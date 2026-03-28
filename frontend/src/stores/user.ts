@@ -53,7 +53,7 @@ export const useUserStore = defineStore('user', {
   actions: {
     async login(loginForm: { email: string; password: string }) {
       const res = await loginApi(loginForm)
-      if (res.code === 200) {
+      if (res.code == 200) {
         this.token = res.data.token
         setToken(res.data.token)
         const userData = res.data.user || res.data
@@ -65,7 +65,7 @@ export const useUserStore = defineStore('user', {
 
     async register(registerForm: { userName?: string; email: string; password: string }) {
       const res = await registerApi(registerForm)
-      if (res.code === 200) {
+      if (res.code == 200) {
         this.token = res.data.token
         setToken(res.data.token)
         const userData = res.data.user || res.data
@@ -77,7 +77,7 @@ export const useUserStore = defineStore('user', {
 
     async getUserInfo() {
       const res = await getUserInfoApi()
-      if (res.code === 200) {
+      if (res.code == 200) {
         this.userInfo = normalizeUserData(res.data)
       } else {
         throw new Error(res.msg || '获取用户信息失败')
@@ -86,7 +86,7 @@ export const useUserStore = defineStore('user', {
 
     async googleLoginByIdToken(idToken: string) {
       const res = await loginWithGoogleIdToken(idToken)
-      if (res.code === 200) {
+      if (res.code == 200) {
         this.token = res.data.token
         setToken(res.data.token)
         const userData = res.data.user || res.data
@@ -98,7 +98,7 @@ export const useUserStore = defineStore('user', {
 
     async githubLogin(code: string) {
       const res = await githubAuthCallback(code)
-      if (res.code === 200) {
+      if (res.code == 200) {
         this.token = res.data.token
         setToken(res.data.token)
         // data 中 token 与用户字段混在一起：拆掉 token

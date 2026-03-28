@@ -70,11 +70,15 @@ onMounted(async () => {
     currentRoute.value = to.path
   })
   
+  // 页面刷新时，如果 token 存在但用户信息不存在，尝试获取用户信息
+  // 如果获取失败，不清除 token，让用户保持登录状态（可能是网络问题）
   if (userStore.token && !userStore.userInfo) {
     try {
       await userStore.getUserInfo()
-    } catch {
-      await userStore.logout()
+    } catch (error) {
+      // 获取失败时不清除 token，可能是网络波动或后端暂时不可用
+      // 用户仍然可以访问不需要登录的页面
+      console.warn('获取用户信息失败，但保留 token:', error)
     }
   }
 })

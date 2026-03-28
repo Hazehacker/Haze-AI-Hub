@@ -56,7 +56,7 @@ export const groupAPI = {
     }
     
     const result = await response.json()
-    if (result.code === 200) {
+    if (result.code == 200) {
       return result.data || []
     } else {
       throw new Error(result.msg || '获取分组失败')

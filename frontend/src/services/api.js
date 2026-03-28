@@ -1,5 +1,7 @@
 import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
+import { ElMessage } from 'element-plus'
+import { useUserStore } from '@/stores/user'
 
 const BASE_URL = 'http://localhost:8080/api/v1'
 
@@ -24,11 +26,15 @@ export const chatAPI = {
       })
       
       if (!response.ok) {
+        if (response.status === 401) {
+          ElMessage.error('请先登录')
+          throw new Error('请先登录')
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data  // 返回会话ID
       } else {
         throw new Error(result.msg || '创建会话失败')
@@ -86,6 +92,11 @@ export const chatAPI = {
       })
 
       if (!response.ok) {
+        // 处理 401 未授权错误
+        if (response.status === 401) {
+          ElMessage.error('请先登录')
+          throw new Error('请先登录')
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -154,12 +165,21 @@ export const chatAPI = {
         }
       })
       if (!response.ok) {
+        if (response.status === 401) {
+          const userStore = useUserStore()
+          ElMessage.error('请先登录')
+          userStore.logout()
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-login-dialog'))
+          }, 100)
+          return []
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       const result = await response.json()
       
       // 处理返回的Result对象
-      if (result.code === 200 && result.data) {
+      if (result.code == 200 && result.data) {
         return result.data.map(session => ({
           id: session.id,
           title: session.title || '新对话',
@@ -187,12 +207,21 @@ export const chatAPI = {
         }
       })
       if (!response.ok) {
+        if (response.status === 401) {
+          const userStore = useUserStore()
+          ElMessage.error('请先登录')
+          userStore.logout()
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-login-dialog'))
+          }, 100)
+          return []
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       const result = await response.json()
       
       // 处理返回的Result对象
-      if (result.code === 200 && result.data) {
+      if (result.code == 200 && result.data) {
         // 添加时间戳并转换为前端需要的格式
         return result.data.map(msg => ({
           role: msg.role,
@@ -228,6 +257,10 @@ export const chatAPI = {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          ElMessage.error('请先登录')
+          throw new Error('请先登录')
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -250,6 +283,10 @@ export const chatAPI = {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          ElMessage.error('请先登录')
+          throw new Error('请先登录')
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -274,6 +311,10 @@ export const chatAPI = {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          ElMessage.error('请先登录')
+          throw new Error('请先登录')
+        }
         throw new Error(`API error: ${response.status}`)
       }
 
@@ -297,11 +338,20 @@ export const chatAPI = {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          const userStore = useUserStore()
+          ElMessage.error('请先登录')
+          userStore.logout()
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-login-dialog'))
+          }, 100)
+          return []
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const result = await response.json()
-      if (result.code === 200 && result.data) {
+      if (result.code == 200 && result.data) {
         // 转换字段名以适配前端
         return result.data.map(model => ({
           id: model.id,
@@ -338,7 +388,7 @@ export const astraAPI = {
         body: JSON.stringify(data)
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       } else {
         throw new Error(result.msg || '创建知识库失败')
@@ -359,7 +409,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data || []
       }
       return []
@@ -377,7 +427,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       }
       return null
@@ -400,7 +450,7 @@ export const astraAPI = {
         body: JSON.stringify(data)
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       }
       return null
@@ -419,7 +469,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return true
       }
       return false
@@ -438,7 +488,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       }
       return null
@@ -463,7 +513,7 @@ export const astraAPI = {
       })
 
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       } else {
         throw new Error(result.msg || '上传文件失败')
@@ -484,7 +534,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data || []
       }
       return []
@@ -502,7 +552,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       }
       return null
@@ -520,7 +570,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data
       }
       return null
@@ -539,7 +589,7 @@ export const astraAPI = {
         headers: { 'authentication': token || '' }
       })
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return true
       }
       return false
@@ -593,6 +643,10 @@ export const astraAPI = {
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          ElMessage.error('请先登录')
+          throw new Error('请先登录')
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -610,8 +664,22 @@ export const astraAPI = {
       const response = await fetch(`${BASE_URL}/astra/sessions/${sessionId}/messages`, {
         headers: { 'authentication': token || '' }
       })
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          const userStore = useUserStore()
+          ElMessage.error('请先登录')
+          userStore.logout()
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('open-login-dialog'))
+          }, 100)
+          return []
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
       const result = await response.json()
-      if (result.code === 200) {
+      if (result.code == 200) {
         return result.data || []
       }
       return []

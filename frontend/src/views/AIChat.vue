@@ -216,7 +216,7 @@
           </template>
         </div>
         
-        <div class="input-area">
+        <div v-if="!showWelcome || currentMessages.length > 0" class="input-area">
           <div v-if="selectedFiles.length > 0" class="selected-files">
             <div v-for="(file, index) in selectedFiles" :key="index" class="file-item">
               <div class="file-info">
@@ -373,8 +373,6 @@ const adjustTextareaHeight = () => {
   if (textarea) {
     textarea.style.height = 'auto'
     textarea.style.height = textarea.scrollHeight + 'px'
-  } else {
-    textarea.style.height = '50px'
   }
   
   // 同时调整欢迎页面的输入框
@@ -809,7 +807,10 @@ const loadChat = async (chatId) => {
   showWelcome.value = false
   try {
     const messages = await chatAPI.getChatMessages(chatId, 'chat')
-    currentMessages.value = messages
+    // 按照创建时间排序，确保消息按时间顺序显示
+    currentMessages.value = (messages || []).sort((a, b) => {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
   } catch (error) {
     console.error('加载对话消息失败:', error)
     currentMessages.value = []
