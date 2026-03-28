@@ -26,7 +26,7 @@ public class ChatMessage {
     @NotNull(message = "所属会话ID不能为空")
     private Long sessionId;
 
-    @Schema(description = "消息角色(类型)[U/A/system]")
+    @Schema(description = "消息角色(类型)[user/assitant/system]")
     private String role;
 
     @Schema(description = "消息内容")

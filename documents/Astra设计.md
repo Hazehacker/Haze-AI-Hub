@@ -212,6 +212,14 @@ LIMIT 10;
 
 ### 3.3 Spring AI 集成
 
+#### 安装
+
+[AI开发技术学习之一：向量数据库 pgvector编译与安装 - 知乎](https://zhuanlan.zhihu.com/p/1980578000966793197)
+
+
+
+#### 集成
+
 `spring-ai-alibaba` 通过 JDBC 连接 PostgreSQL，配合 `VectorStore` 接口即可：
 
 ```java
@@ -226,6 +234,10 @@ public class VectorStoreConfig {
     }
 }
 ```
+
+
+
+
 
 ---
 

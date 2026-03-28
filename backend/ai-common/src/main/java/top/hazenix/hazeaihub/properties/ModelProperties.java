@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "spring.ai.dashscope.api-key")
+@ConfigurationProperties(prefix = "spring.ai.dashscope")
 public class ModelProperties {
     private String apiKey;
 }

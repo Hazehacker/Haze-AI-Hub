@@ -53,7 +53,7 @@ public class HistoryController {
 
     /**
      * 获取指定会话的消息历史
-     * @param type 会话类型 (chat/pdf/game/service)
+     * @param type 会话类型 (chat/astra)
      * @param chatId 会话ID
      * @return 消息列表（按创建时间升序）
      */

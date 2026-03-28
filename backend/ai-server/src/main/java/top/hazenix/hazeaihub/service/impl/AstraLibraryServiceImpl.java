@@ -36,7 +36,9 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
     @Transactional
     public LibraryResponse createLibrary(Long userId, LibraryCreateRequest request) {
         log.info("创建知识库: userId={}, name={}", userId, request.getName());
-
+        if(userId == null) {
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "登录后才能创建知识库");
+        }
         // 校验知识库类型
         String type = request.getType();
         if (!"personal".equals(type) && !"team".equals(type)) {
@@ -120,6 +122,9 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
     @Transactional
     public void deleteLibrary(Long libraryId, Long userId) {
         log.info("删除知识库: libraryId={}, userId={}", libraryId, userId);
+        if(userId == null){
+
+        }
 
         KbLibrary library = libraryMapper.selectById(libraryId);
         if (library == null) {
@@ -140,7 +145,9 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
     @Transactional
     public LibraryResponse toggleTop(Long libraryId, Long userId) {
         log.info("切换置顶状态: libraryId={}, userId={}", libraryId, userId);
-
+        if(userId == null){
+            throw new BusinessException(ErrorCode.PARAM_INVALID, "用户未登录");
+        }
         KbLibrary library = libraryMapper.selectById(libraryId);
         if (library == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在");

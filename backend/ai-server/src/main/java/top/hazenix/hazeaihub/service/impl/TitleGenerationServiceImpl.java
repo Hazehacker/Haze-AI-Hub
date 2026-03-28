@@ -7,6 +7,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import top.hazenix.hazeaihub.constant.RoleConstant;
 import top.hazenix.hazeaihub.entity.ChatMessage;
 import top.hazenix.hazeaihub.service.IChatMessageService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
@@ -42,7 +43,7 @@ public class TitleGenerationServiceImpl implements ITitleGenerationService {
             // 构建提示词
             StringBuilder conversationText = new StringBuilder();
             for (ChatMessage msg : messages) {
-                String role = "U".equals(msg.getRole()) ? "用户" : "AI";
+                String role = RoleConstant.USER.equals(msg.getRole()) ? "用户" : "AI";
                 conversationText.append(role).append("：").append(msg.getContent()).append("\n");
             }
             
@@ -83,9 +84,8 @@ public class TitleGenerationServiceImpl implements ITitleGenerationService {
     }
     
     @Override
-    @Async
-    public void generateAndUpdateTitleAsync(Long sessionId) {
-        log.info("开始异步生成标题: sessionId={}", sessionId);
+    public void generateAndUpdateTitle(Long sessionId) {
+        log.info("开始生成标题: sessionId={}", sessionId);
         
         try {
             // 获取首轮对话

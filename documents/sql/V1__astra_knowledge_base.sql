@@ -15,8 +15,8 @@ CREATE TABLE kb_library (
     cover_image VARCHAR(600),
     created_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
-    CONSTRAINT uk_library_name_owner UNIQUE (name, owner_id),
-    CONSTRAINT fk_library_owner FOREIGN KEY (owner_id) REFERENCES chat_session(user_id) ON DELETE CASCADE
+    CONSTRAINT uk_library_name_owner UNIQUE (name, owner_id)
+    -- 逻辑外键: owner_id 关联 chat_session(user_id)，业务层保证
 );
 
 COMMENT ON TABLE kb_library IS '知识库表';
@@ -45,8 +45,8 @@ CREATE TABLE kb_media (
     error_message VARCHAR(512),
     created_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_media_library FOREIGN KEY (library_id) REFERENCES kb_library(id) ON DELETE CASCADE,
     CONSTRAINT uk_media_sha256_library UNIQUE (sha256, library_id)
+    -- 逻辑外键: library_id 关联 kb_library(id)，业务层保证
 );
 
 COMMENT ON TABLE kb_media IS '媒体表-存储知识库内上传的文件元信息';
@@ -73,9 +73,8 @@ CREATE TABLE kb_chunk (
     embedding VECTOR(1024),
     chunk_index INT4 NOT NULL,
     metadata JSONB,
-    created_at TIMESTAMP(0) NOT NULL DEFAULT NOW(),
-    CONSTRAINT fk_chunk_library FOREIGN KEY (library_id) REFERENCES kb_library(id) ON DELETE CASCADE,
-    CONSTRAINT fk_chunk_media FOREIGN KEY (media_id) REFERENCES kb_media(id) ON DELETE CASCADE
+    created_at TIMESTAMP(0) NOT NULL DEFAULT NOW()
+    -- 逻辑外键: library_id 关联 kb_library(id)，media_id 关联 kb_media(id)，业务层保证
 );
 
 COMMENT ON TABLE kb_chunk IS '分片表-存储解析后的文本分片及向量嵌入';

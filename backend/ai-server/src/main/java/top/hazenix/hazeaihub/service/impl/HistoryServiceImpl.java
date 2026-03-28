@@ -76,7 +76,7 @@ public class HistoryServiceImpl implements IHistoryService {
         LambdaQueryWrapper<ChatMessage> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(ChatMessage::getSessionId, sessionId)
                     .eq(ChatMessage::getStatus, true)
-                    .orderByAsc(ChatMessage::getCreatedAt);
+                    .orderByAsc(ChatMessage::getId);
         
         List<ChatMessage> messages = chatMessageMapper.selectList(queryWrapper);
         

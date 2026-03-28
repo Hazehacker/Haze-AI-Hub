@@ -23,10 +23,7 @@ import top.hazenix.hazeaihub.service.IChatService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
 import top.hazenix.hazeaihub.service.ITitleGenerationService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 对话服务实现
@@ -74,11 +71,11 @@ public class ChatServiceImpl implements IChatService {
             messages.addAll(historyMessages.stream().map(message -> {
                 return switch (message.getRole()) {
                     case RoleConstant.SYSTEM -> new SystemMessage(message.getContent());
-                    case RoleConstant.USER_ROLE -> new UserMessage(message.getContent());
-                    case RoleConstant.ASSISTANT_ROLE -> new AssistantMessage(message.getContent());
+                    case RoleConstant.USER -> new UserMessage(message.getContent());
+                    case RoleConstant.ASSISTANT -> new AssistantMessage(message.getContent());
                     default -> null;
                 };
-            }).toList());
+            }).filter(Objects::nonNull).toList());
         }
         messages.add(new UserMessage(prompt));
 
@@ -147,7 +144,7 @@ public class ChatServiceImpl implements IChatService {
 
                     // 新会话则生成标题
                     if (isNewSession) {
-                        titleGenerationService.generateAndUpdateTitleAsync(finalSessionId);
+                        titleGenerationService.generateAndUpdateTitle(finalSessionId);
                     }
                 })
                 .doOnError(error -> log.error("流式对话出错", error))

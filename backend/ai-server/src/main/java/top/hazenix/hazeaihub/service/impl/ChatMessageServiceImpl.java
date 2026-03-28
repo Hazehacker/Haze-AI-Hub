@@ -32,7 +32,7 @@ public class ChatMessageServiceImpl implements IChatMessageService {
         
         ChatMessage message = ChatMessage.builder()
                 .sessionId(sessionId)
-                .role("U")
+                .role("user")
                 .content(content)
                 .status(true)
                 .createdAt(LocalDateTime.now())
@@ -56,7 +56,7 @@ public class ChatMessageServiceImpl implements IChatMessageService {
         
         ChatMessage message = ChatMessage.builder()
                 .sessionId(sessionId)
-                .role("A")
+                .role("assistant")
                 .content(content)
                 .status(true)
                 .metadataJson(metadata)

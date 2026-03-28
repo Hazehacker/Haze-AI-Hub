@@ -13,7 +13,6 @@ import top.hazenix.hazeaihub.properties.ModelProperties;
 @Configuration
 @RequiredArgsConstructor
 public class AgentConfiguration {
-    private final ModelProperties modelProperties;
     private final ChatModel textChatModel;
 
     /**
@@ -25,9 +24,6 @@ public class AgentConfiguration {
      */
     @Bean
     public ReactAgent textChatAgent() {
-        // 初始化 DashScope ChatModel
-
-
         // 创建 ReactAgent
         return ReactAgent.builder()
                 .name("textChatAgent")

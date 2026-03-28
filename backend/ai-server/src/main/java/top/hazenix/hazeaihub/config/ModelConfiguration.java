@@ -2,11 +2,10 @@ package top.hazenix.hazeaihub.config;
 
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
-import com.alibaba.cloud.ai.dashscope.spec.DashScopeModel;
 import lombok.RequiredArgsConstructor;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import top.hazenix.hazeaihub.properties.ModelProperties;
 
 @Configuration
@@ -15,7 +14,8 @@ public class ModelConfiguration {
     private final ModelProperties modelProperties;
 
     @Bean
-    public ChatModel textChatModel(){
+    @Primary
+    public DashScopeChatModel textChatModel(){
         // 初始化 DashScope ChatModel
         DashScopeApi dashScopeApi = DashScopeApi.builder()
                 .apiKey(modelProperties.getApiKey())

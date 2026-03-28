@@ -16,18 +16,20 @@ spring:
 #          model: qwen2.5-vl-embedding # 多模态向量模型
     ai:
       vectorstore:
-        redis:
-          index: spring_ai_index # 向量库索引名
-          initialize-schema: true # 是否初始化向量库索引结构（框架自动创建索引库结构）
-          prefix: "doc:" # 向量库所有key的前缀（用于区分不同的库）
-    data:
-      redis:
-        host: ${ai.redis.host:localhost} # redis服务地址
+
   datasource:
     url: jdbc:postgresql://${ai.datasource.host:localhost}:${ai.datasource.port:5432}/${ai.datasource.database:haze-ai-hub}?sslmode=disable
     driver-class-name: ${ai.datasource.driver-class-name:org.postgresql.Driver}
     username: ${ai.datasource.username:postgres}
     password: ${ai.datasource.password:1234}
+  data:
+    redis:
+      host: ${ai.redis.host:localhost}
+      port: ${ai.redis.port:6379}
+      password: ${ai.redis.password:}
+      timeout: ${ai.redis.timeout:10000}
+      database: ${ai.redis.database:2}
+
 logging:
   level:
     org.springframework.ai.chat.client.advisor: debug

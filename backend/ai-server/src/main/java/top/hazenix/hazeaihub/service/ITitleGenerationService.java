@@ -23,5 +23,5 @@ public interface ITitleGenerationService {
      * 异步生成并更新会话标题
      * @param sessionId 会话ID
      */
-    void generateAndUpdateTitleAsync(Long sessionId);
+    void generateAndUpdateTitle(Long sessionId);
 }
