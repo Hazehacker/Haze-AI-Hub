@@ -91,10 +91,10 @@ public class TitleGenerationServiceImpl implements ITitleGenerationService {
             // 获取首轮对话
             List<ChatMessage> messages = chatMessageService.getFirstRoundMessages(sessionId);
             
-            if (messages.size() < 2) {
-                log.warn("消息不足，跳过标题生成: sessionId={}", sessionId);
-                return;
-            }
+//            if (messages.size() < 2) {
+//                log.warn("消息不足，跳过标题生成: sessionId={}", sessionId);
+//                return;
+//            }
             
             // 生成标题
             String title = generateTitle(messages);

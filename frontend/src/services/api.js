@@ -42,7 +42,7 @@ export const chatAPI = {
   // 发送聊天消息（带思考过程）- 支持 SSE 事件
   async sendMessage(data, sessionId, onSessionCreated) {
     try {
-      const url = `${BASE_URL}/ai/chat-with-thinking-text`
+      const url = `${BASE_URL}/ai/text-chat`
       
       const token = getToken()
       const headers = {
