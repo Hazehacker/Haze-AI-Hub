@@ -4,6 +4,7 @@ import com.aliyun.oss.ClientException;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.OSSObject;
 import com.aliyuncs.DefaultAcsClient;
 import com.aliyuncs.auth.sts.AssumeRoleRequest;
 import com.aliyuncs.auth.sts.AssumeRoleResponse;
@@ -17,6 +18,7 @@ import top.hazenix.hazeaihub.properties.AliOssProperties;
 
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.URL;
 import java.util.Date;
 import java.util.HashMap;
@@ -206,6 +208,48 @@ public class AliOssUtil {
         try {
             ossClient.deleteObject(bucketName, objectKey);
             log.info("OSS 文件删除成功: {}", objectKey);
+        } finally {
+            ossClient.shutdown();
+        }
+    }
+
+    /**
+     * 从完整 URL 中提取 objectKey
+     * 例如: https://bucket.endpoint/astra/1/sha256 -> astra/1/sha256
+     */
+    public String extractObjectKey(String fullUrl) {
+        if (fullUrl == null || fullUrl.isEmpty()) {
+            return null;
+        }
+        int idx = fullUrl.indexOf("/", 8); // skip "https://"
+        if (idx > 0) {
+            return fullUrl.substring(idx + 1);
+        }
+        return fullUrl;
+    }
+
+    /**
+     * 下载 OSS 文件到字节数组
+     * @param fullUrl 完整的文件访问 URL
+     * @return 文件字节数组
+     */
+    public byte[] download(String fullUrl) throws IOException {
+        String objectKey = extractObjectKey(fullUrl);
+        if (objectKey == null) {
+            throw new RuntimeException("无法从 URL 中提取 objectKey: " + fullUrl);
+        }
+
+        String endpoint = aliOssProperties.getEndpoint();
+        String accessKeyId = aliOssProperties.getAccessKeyId();
+        String accessKeySecret = aliOssProperties.getAccessKeySecret();
+        String bucketName = aliOssProperties.getBucketName();
+
+        OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
+        try {
+            OSSObject ossObject = ossClient.getObject(bucketName, objectKey);
+            byte[] buffer = ossObject.getObjectContent().readAllBytes();
+            log.info("OSS 文件下载成功: objectKey={}, size={}", objectKey, buffer.length);
+            return buffer;
         } finally {
             ossClient.shutdown();
         }

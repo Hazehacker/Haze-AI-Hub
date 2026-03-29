@@ -1,6 +1,8 @@
 package top.hazenix.hazeaihub.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.Redisson;
+import org.redisson.config.Config;
 import org.redisson.api.RedissonClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +18,6 @@ public class RedissonConfiguration {
     @Bean(destroyMethod = "shutdown")
     public RedissonClient redissonClient() {
         log.info("RedissonClient 初始化");
-        return Redisson.create();
+        return Redisson.create(new Config());
     }
 }

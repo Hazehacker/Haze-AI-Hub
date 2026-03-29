@@ -15,22 +15,31 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FileParserFactory {
 
+    /**
+     * 类上有 @RequiredArgsConstructor 注解，Spring 会自动把所有 FileParser 实现类通过构造器注入进来
+     */
     private final List<FileParser> parsers;
 
+    /**
+     * key: 文件类型; value: 解析器
+     */
     private Map<String, FileParser> parserMap;
 
     /**
      * 初始化解析器映射
      */
     private Map<String, FileParser> getParserMap() {
-        if (parserMap == null) {
-            parserMap = parsers.stream()
-                    .collect(Collectors.toMap(
-                            FileParser::getFileType,
-                            Function.identity(),
-                            (existing, replacement) -> existing
-                    ));
+        if (parserMap != null) {
+            return parserMap;
         }
+
+        // key: 文件类型, value: 对应解析器
+        // 如果重复,保留已有的解析器
+        parserMap = new java.util.HashMap<>();
+        for (FileParser parser : parsers) {
+            parserMap.putIfAbsent(parser.getFileType(), parser);
+        }
+
         return parserMap;
     }
 

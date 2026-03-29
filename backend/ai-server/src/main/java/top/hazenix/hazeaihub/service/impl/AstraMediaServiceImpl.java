@@ -198,8 +198,8 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
 
         // 删除 OSS 文件 - 从完整 URL 中提取 objectKey
         String storagePath = media.getStoragePath();
-        if (storagePath != null && storagePath.contains("://")) {
-            String objectKey = storagePath.substring(storagePath.lastIndexOf("/") + 1);
+        if (storagePath != null) {
+            String objectKey = aliOssUtil.extractObjectKey(storagePath);
             aliOssUtil.delete(objectKey);
         }
 

@@ -1,15 +1,20 @@
 package top.hazenix.hazeaihub.parser;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
 import top.hazenix.hazeaihub.bo.ParseMessage;
 import top.hazenix.hazeaihub.entity.KbChunk;
 import top.hazenix.hazeaihub.entity.KbMedia;
 import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbMediaMapper;
+import top.hazenix.hazeaihub.utils.AliOssUtil;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -25,11 +30,14 @@ public class PdfFileParser implements FileParser {
     private final KbMediaMapper mediaMapper;
     private final KbChunkMapper chunkMapper;
     private final ChunkingService chunkingService;
+    private final AliOssUtil aliOssUtil;
 
-    public PdfFileParser(KbMediaMapper mediaMapper, KbChunkMapper chunkMapper, ChunkingService chunkingService) {
+    public PdfFileParser(KbMediaMapper mediaMapper, KbChunkMapper chunkMapper,
+                         ChunkingService chunkingService, AliOssUtil aliOssUtil) {
         this.mediaMapper = mediaMapper;
         this.chunkMapper = chunkMapper;
         this.chunkingService = chunkingService;
+        this.aliOssUtil = aliOssUtil;
     }
 
     @Override
@@ -50,47 +58,50 @@ public class PdfFileParser implements FileParser {
                 throw new RuntimeException("媒体文件不存在: " + message.getMediaId());
             }
 
-            // 2. TODO: 从 OSS 下载文件到本地/内存
-            // InputStream inputStream = ossUtil.getInputStream(message.getOssKey());
-            // 暂时使用占位符
+            // 2. 从 OSS 下载文件
+            byte[] fileBytes = aliOssUtil.download(message.getOssKey());
 
-            // 3. 解析 PDF
-            // try (PDDocument document = PDDocument.load(inputStream)) {
-            //     PDFTextStripper stripper = new PDFTextStripper();
-            //     stripper.setSortByPosition(true);
-            //
-            //     int totalPages = document.getNumberOfPages();
-            //     for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
-            //         stripper.setStartPage(pageNum);
-            //         stripper.setEndPage(pageNum);
-            //         String pageText = stripper.getText(document);
-            //
-            //         // 智能分块
-            //         List<String> chunks = chunkingService.chunk(pageText);
-            //         for (int i = 0; i < chunks.size(); i++) {
-            //             String content = chunks.get(i);
-            //             Map<String, Object> metadata = new HashMap<>();
-            //             metadata.put("page", pageNum);
-            //             metadata.put("fileName", media.getFileName());
-            //
-            //             // 保存到数据库
-            //             KbChunk chunk = KbChunk.builder()
-            //                     .libraryId(message.getLibraryId())
-            //                     .mediaId(message.getMediaId())
-            //                     .content(content)
-            //                     .chunkIndex(allChunks.size())
-            //                     .metadata(metadata)
-            //                     .build();
-            //             chunkMapper.insert(chunk);
-            //
-            //             // 添加到响应列表
-            //             allChunks.add(toChunkResponse(chunk, media));
-            //         }
-            //     }
-            // }
+            // 3. 解析 PDF（使用pdfbox API）
+            try (PDDocument document = Loader.loadPDF(fileBytes)) {
+                PDFTextStripper stripper = new PDFTextStripper();
+                stripper.setSortByPosition(true);
 
-            // TODO: 暂时返回空列表，等 OSS 集成后完善
-            log.info("PDF解析完成(待实现OSS集成): mediaId={}, chunks={}", message.getMediaId(), allChunks.size());
+                int totalPages = document.getNumberOfPages();
+                log.info("PDF总页数: {}, mediaId={}", totalPages, message.getMediaId());
+
+                for (int pageNum = 1; pageNum <= totalPages; pageNum++) {
+                    stripper.setStartPage(pageNum);
+                    stripper.setEndPage(pageNum);
+                    String pageText = stripper.getText(document);
+
+                    if (pageText == null || pageText.isBlank()) {
+                        continue;
+                    }
+
+                    // 智能分块
+                    List<String> textChunks = chunkingService.chunk(pageText);
+                    for (String content : textChunks) {
+                        Map<String, Object> metadata = new HashMap<>();
+                        metadata.put("page", pageNum);
+                        metadata.put("fileName", media.getFileName());
+
+                        // 保存到数据库
+                        KbChunk chunk = KbChunk.builder()
+                                .libraryId(message.getLibraryId())
+                                .mediaId(message.getMediaId())
+                                .content(content)
+                                .chunkIndex(allChunks.size())
+                                .metadata(metadata)
+                                .build();
+                        chunkMapper.insert(chunk);
+
+                        // 添加到响应列表
+                        allChunks.add(toChunkResponse(chunk, media));
+                    }
+                }
+            }
+
+            log.info("PDF解析完成: mediaId={}, chunks={}", message.getMediaId(), allChunks.size());
 
         } catch (Exception e) {
             log.error("PDF解析失败: mediaId={}", message.getMediaId(), e);

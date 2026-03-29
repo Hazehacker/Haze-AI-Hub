@@ -162,11 +162,11 @@ public class AstraParseConsumer {
                 throw new RuntimeException("不支持的文件类型: " + message.getFileType());
             }
 
-            // 执行解析 (暂时禁用，TODO: 实现完整解析逻辑)
-//             List<ChunkResponse> chunks = parser.parse(message);
+            // 执行解析
+            List<ChunkResponse> chunks = parser.parse(message);
 
-            // 模拟解析完成
-            int totalChunks = 10;
+            // 更新解析完成状态
+            int totalChunks = chunks.size();
             updateMediaStatus(message.getMediaId(), MediaStatus.PARSED, null, totalChunks);
             sseEmitterService.sendComplete(message.getMediaId(), totalChunks);
 
