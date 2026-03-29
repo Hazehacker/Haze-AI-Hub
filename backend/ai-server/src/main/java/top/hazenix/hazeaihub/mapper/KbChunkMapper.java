@@ -51,4 +51,21 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
      */
     @Select("SELECT COUNT(*) FROM kb_chunk WHERE library_id = #{libraryId}")
     long countByLibraryId(@Param("libraryId") Long libraryId);
+
+    /**
+     * 向量相似度检索
+     * @param libraryId 知识库ID
+     * @param queryEmbedding 查询向量
+     * @param topK 召回数量
+     * @return 匹配的KbChunk列表
+     */
+    List<KbChunk> vectorSearch(@Param("libraryId") Long libraryId,
+                               @Param("queryEmbedding") float[] queryEmbedding,
+                               @Param("topK") int topK);
+
+    /**
+     * 批量插入KbChunk
+     * @param chunks 分片列表
+     */
+    void batchInsert(@Param("chunks") List<KbChunk> chunks);
 }

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="top.hazenix.hazeaihub.mapper.KbChunkMapper">
+
+    <!-- 向量相似度检索 -->
+    <select id="vectorSearch" resultType="top.hazenix.hazeaihub.entity.KbChunk">
+        SELECT *,
+               1 - (embedding &lt;=&gt; #{queryEmbedding}::vector) AS similarity
+        FROM kb_chunk
+        WHERE library_id = #{libraryId}
+        ORDER BY embedding &lt;=&gt; #{queryEmbedding}::vector
+        LIMIT #{topK}
+    </select>
+
+    <!-- 批量插入 -->
+    <insert id="batchInsert">
+        INSERT INTO kb_chunk (library_id, media_id, content, embedding, chunk_index, metadata)
+        VALUES
+        <foreach collection="chunks" item="chunk" separator=",">
+            (#{chunk.libraryId}, #{chunk.mediaId}, #{chunk.content},
+             #{chunk.embedding}::vector, #{chunk.chunkIndex}, #{chunk.metadata}::jsonb)
+        </foreach>
+    </insert>
+
+</mapper>

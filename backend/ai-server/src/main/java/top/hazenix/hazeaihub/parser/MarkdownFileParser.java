@@ -1,13 +1,13 @@
 package top.hazenix.hazeaihub.parser;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;
 import top.hazenix.hazeaihub.bo.ParseMessage;
-import top.hazenix.hazeaihub.entity.KbChunk;
 import top.hazenix.hazeaihub.entity.KbMedia;
-import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbMediaMapper;
 import top.hazenix.hazeaihub.utils.AliOssUtil;
+import top.hazenix.hazeaihub.vector.HybridVectorStore;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.nio.charset.StandardCharsets;
@@ -26,14 +26,16 @@ public class MarkdownFileParser implements FileParser {
     private static final String FILE_TYPE = "MD";
 
     private final KbMediaMapper mediaMapper;
-    private final KbChunkMapper chunkMapper;
+    private final HybridVectorStore vectorStore;
     private final ChunkingService chunkingService;
     private final AliOssUtil aliOssUtil;
 
-    public MarkdownFileParser(KbMediaMapper mediaMapper, KbChunkMapper chunkMapper,
-                              ChunkingService chunkingService, AliOssUtil aliOssUtil) {
+    public MarkdownFileParser(KbMediaMapper mediaMapper,
+                              HybridVectorStore vectorStore,
+                              ChunkingService chunkingService,
+                              AliOssUtil aliOssUtil) {
         this.mediaMapper = mediaMapper;
-        this.chunkMapper = chunkMapper;
+        this.vectorStore = vectorStore;
         this.chunkingService = chunkingService;
         this.aliOssUtil = aliOssUtil;
     }
@@ -47,7 +49,8 @@ public class MarkdownFileParser implements FileParser {
     public List<ChunkResponse> parse(ParseMessage message) {
         log.info("开始解析Markdown: mediaId={}, ossKey={}", message.getMediaId(), message.getOssKey());
 
-        List<ChunkResponse> allChunks = new ArrayList<>();
+        List<Document> documents = new ArrayList<>();
+        List<String> sources = new ArrayList<>();
 
         try {
             // 1. 获取媒体信息
@@ -67,53 +70,46 @@ public class MarkdownFileParser implements FileParser {
 
             // 智能分块
             List<String> textChunks = chunkingService.chunk(content);
+            int chunkIndex = 0;
             for (String chunkContent : textChunks) {
                 Map<String, Object> metadata = new HashMap<>();
                 metadata.put("fileName", media.getFileName());
                 metadata.put("lineCount", lines.length);
+                metadata.put("libraryId", message.getLibraryId());
+                metadata.put("mediaId", message.getMediaId());
+                metadata.put("chunkIndex", chunkIndex++);
 
-                // 保存到数据库
-                KbChunk chunk = KbChunk.builder()
-                        .libraryId(message.getLibraryId())
-                        .mediaId(message.getMediaId())
-                        .content(chunkContent)
-                        .chunkIndex(allChunks.size())
+                Document doc = Document.builder()
+                        .text(chunkContent)
                         .metadata(metadata)
                         .build();
-                chunkMapper.insert(chunk);
+                documents.add(doc);
+                sources.add(media.getFileName());
+            }
 
-                // 添加到响应列表
-                allChunks.add(toChunkResponse(chunk, media));
+            // 4. 使用 VectorStore 批量入库（自动生成 embedding）
+            if (!documents.isEmpty()) {
+                vectorStore.add(documents);
+            }
+
+            // 5. 转换为响应列表
+            List<ChunkResponse> allChunks = new ArrayList<>();
+            for (int i = 0; i < documents.size(); i++) {
+                Document doc = documents.get(i);
+                Map<String, Object> metadata = new HashMap<>(doc.getMetadata());
+                allChunks.add(ChunkResponse.builder()
+                        .content(doc.getText())
+                        .metadata(metadata)
+                        .source(sources.get(i))
+                        .build());
             }
 
             log.info("Markdown解析完成: mediaId={}, chunks={}", message.getMediaId(), allChunks.size());
+            return allChunks;
 
         } catch (Exception e) {
             log.error("Markdown解析失败: mediaId={}", message.getMediaId(), e);
             throw new RuntimeException("Markdown解析失败: " + e.getMessage(), e);
         }
-
-        return allChunks;
-    }
-
-    private ChunkResponse toChunkResponse(KbChunk chunk, KbMedia media) {
-        Map<String, Object> metadata = chunk.getMetadata();
-        String source = null;
-        if (metadata != null) {
-            Object fileName = metadata.get("fileName");
-            if (fileName != null) {
-                source = fileName.toString();
-            }
-        }
-
-        return ChunkResponse.builder()
-                .id(chunk.getId())
-                .libraryId(chunk.getLibraryId())
-                .mediaId(chunk.getMediaId())
-                .content(chunk.getContent())
-                .chunkIndex(chunk.getChunkIndex())
-                .metadata(metadata)
-                .source(source)
-                .build();
     }
 }

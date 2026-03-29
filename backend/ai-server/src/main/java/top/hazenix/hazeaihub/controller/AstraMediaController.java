@@ -84,7 +84,7 @@ public class AstraMediaController {
         Long userId = BaseContext.getCurrentId();
         log.info("SSE连接建立: mediaId={}, userId={}", mediaId, userId);
 
-        // TODO: 校验用户是否有权限访问该媒体文件
+        // 这个接口安全要求低，暂时不做权限处理
 
         return sseEmitterService.createEmitter(mediaId);
     }

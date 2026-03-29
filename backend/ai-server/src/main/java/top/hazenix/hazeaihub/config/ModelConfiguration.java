@@ -2,6 +2,8 @@ package top.hazenix.hazeaihub.config;
 
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
+import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingModel;
+import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingOptions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,6 +33,17 @@ public class ModelConfiguration {
                         .maxToken(2000)
                         .build()
                 )
+                .build();
+    }
+
+    @Bean
+    public DashScopeEmbeddingModel dashScopeEmbeddingModel(){
+        DashScopeApi dashScopeApi = DashScopeApi.builder()
+                .apiKey(modelProperties.getApiKey())
+                .build();
+
+        return DashScopeEmbeddingModel.builder()
+                .dashScopeApi(dashScopeApi)
                 .build();
     }
 }

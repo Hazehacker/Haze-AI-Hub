@@ -1,5 +1,6 @@
 package top.hazenix.hazeaihub.service.impl;
 
+import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -16,12 +17,9 @@ import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.service.IAstraSearchService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
-import top.hazenix.hazeaihub.utils.AliOssUtil;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -35,12 +33,14 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     private final KbLibraryMapper libraryMapper;
     private final KbChunkMapper chunkMapper;
     private final IChatSessionService chatSessionService;
+    private final DashScopeEmbeddingModel embeddingModel;
     private final ChatClient astraClient;
 
     // 混合检索参数
     private static final int BM25_TOP_K = 50;
     private static final int VECTOR_TOP_K = 50;
     private static final int RERANK_TOP_K = 10;
+    private static final int RRF_K = 60;
 
     @Override
     public List<ChunkResponse> hybridSearch(Long libraryId, String query, int topK) {
@@ -52,20 +52,126 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             throw new BusinessException(ErrorCode.ASTRA_LIBRARY_EMPTY);
         }
 
-        // 2. TODO: BM25 关键词检索
-        // List<ChunkResponse> bm25Results = bm25Search(query, BM25_TOP_K);
+        // 2. BM25 关键词检索
+        List<ChunkResponse> bm25Results = bm25Search(libraryId, query, BM25_TOP_K);
 
-        // 3. TODO: 向量相似度检索
-        // List<ChunkResponse> vectorResults = vectorSearch(query, VECTOR_TOP_K);
+        // 3. 向量相似度检索
+        List<ChunkResponse> vectorResults = vectorSearch(libraryId, query, VECTOR_TOP_K);
 
-        // 4. TODO: RRF 合并去重
-        // List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults);
+        // 4. RRF 合并去重
+        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, topK);
 
-        // 5. 后过滤（去重、长度过滤）
+        // 5. 返回合并后的结果
+        return mergedResults;
+    }
 
-        // 6. 返回合并后的结果
-        // 暂时返回空列表，等后续实现向量检索后完善
-        return new ArrayList<>();
+    /**
+     * 向量相似度检索
+     */
+    private List<ChunkResponse> vectorSearch(Long libraryId, String query, int topK) {
+        try {
+            // 1. 生成查询向量
+            float[] queryEmbedding = embeddingModel.embed(query);
+
+            // 2. 执行向量检索
+            List<KbChunk> chunks = chunkMapper.vectorSearch(libraryId, queryEmbedding, topK);
+
+            // 3. 转换为 ChunkResponse
+            return chunks.stream()
+                    .map(chunk -> toChunkResponse(chunk, null))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("向量检索失败: libraryId={}, query={}", libraryId, query, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * BM25 关键词检索（使用 PostgreSQL 全文检索）
+     */
+    private List<ChunkResponse> bm25Search(Long libraryId, String query, int topK) {
+        try {
+            // 使用 PostgreSQL 全文检索
+            List<KbChunk> chunks = chunkMapper.listByLibraryId(libraryId);
+
+            // 简单的关键词匹配评分
+            String[] queryTerms = query.toLowerCase().split("\\s+");
+            Map<Long, Double> scores = new HashMap<>();
+
+            for (KbChunk chunk : chunks) {
+                String content = chunk.getContent().toLowerCase();
+                int matchCount = 0;
+                for (String term : queryTerms) {
+                    if (content.contains(term)) {
+                        matchCount++;
+                    }
+                }
+                if (matchCount > 0) {
+                    // 简单的评分：匹配词数 * 匹配密度
+                    double score = matchCount * (1.0 / (1 + Math.log1p(content.length())));
+                    scores.put(chunk.getId(), score);
+                }
+            }
+
+            // 按评分排序
+            return scores.entrySet().stream()
+                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                    .limit(topK)
+                    .map(entry -> {
+                        KbChunk chunk = chunks.stream()
+                                .filter(c -> c.getId().equals(entry.getKey()))
+                                .findFirst()
+                                .orElse(null);
+                        if (chunk != null) {
+                            ChunkResponse response = toChunkResponse(chunk, null);
+                            response.setScore(entry.getValue().floatValue());
+                            return response;
+                        }
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("BM25检索失败: libraryId={}, query={}", libraryId, query, e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * RRF (Reciprocal Rank Fusion) 合并
+     */
+    private List<ChunkResponse> rrfMerge(List<ChunkResponse> bm25Results,
+                                          List<ChunkResponse> vectorResults,
+                                          int topK) {
+        Map<Long, ChunkResponse> chunkMap = new LinkedHashMap<>();
+        Map<Long, Double> rrfScores = new HashMap<>();
+
+        // 处理 BM25 结果
+        for (int i = 0; i < bm25Results.size(); i++) {
+            ChunkResponse chunk = bm25Results.get(i);
+            chunkMap.put(chunk.getId(), chunk);
+            double prevScore = rrfScores.getOrDefault(chunk.getId(), 0.0);
+            rrfScores.put(chunk.getId(), prevScore + 1.0 / (i + RRF_K));
+        }
+
+        // 处理向量结果
+        for (int i = 0; i < vectorResults.size(); i++) {
+            ChunkResponse chunk = vectorResults.get(i);
+            chunkMap.put(chunk.getId(), chunk);
+            double prevScore = rrfScores.getOrDefault(chunk.getId(), 0.0);
+            rrfScores.put(chunk.getId(), prevScore + 1.0 / (i + RRF_K));
+        }
+
+        // 按 RRF 分数排序
+        return rrfScores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .limit(topK)
+                .map(entry -> {
+                    ChunkResponse chunk = chunkMap.get(entry.getKey());
+                    chunk.setScore(entry.getValue().floatValue());
+                    return chunk;
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -198,7 +304,15 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         Map<String, Object> metadata = chunk.getMetadata();
         String source = null;
         if (metadata != null) {
-            String fileName = media != null ? media.getFileName() : null;
+            String fileName = null;
+            if (media != null) {
+                fileName = media.getFileName();
+            } else {
+                Object fileNameObj = metadata.get("fileName");
+                if (fileNameObj != null) {
+                    fileName = fileNameObj.toString();
+                }
+            }
             Object pageObj = metadata.get("page");
             if (fileName != null && pageObj != null) {
                 source = fileName + "-第" + pageObj + "页";
