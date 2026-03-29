@@ -14,6 +14,7 @@ import top.hazenix.hazeaihub.service.IAstraMediaService;
 import top.hazenix.hazeaihub.service.SseEmitterService;
 import top.hazenix.hazeaihub.vo.MediaResponse;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -33,7 +34,7 @@ public class AstraMediaController {
     @Operation(summary = "上传文件")
     public Result<MediaResponse> uploadFile(
             @Parameter(description = "文件", required = true) @RequestParam("file") MultipartFile file,
-            @Parameter(description = "知识库ID", required = true) @RequestParam("libraryId") Long libraryId) {
+            @Parameter(description = "知识库ID", required = true) @RequestParam("libraryId") Long libraryId) throws IOException {
         Long userId = BaseContext.getCurrentId();
         log.info("上传文件: userId={}, libraryId={}, fileName={}",
                 userId, libraryId, file.getOriginalFilename());

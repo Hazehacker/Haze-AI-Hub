@@ -191,4 +191,23 @@ public class AliOssUtil {
         result.put("dir", "music/" + userId + "/");
         return result;
     }
+
+    /**
+     * 删除 OSS 文件
+     * @param objectKey OSS 对象 key（UUID-based），从完整 URL 中提取
+     */
+    public void delete(String objectKey) {
+        String endpoint = aliOssProperties.getEndpoint();
+        String accessKeyId = aliOssProperties.getAccessKeyId();
+        String accessKeySecret = aliOssProperties.getAccessKeySecret();
+        String bucketName = aliOssProperties.getBucketName();
+
+        OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
+        try {
+            ossClient.deleteObject(bucketName, objectKey);
+            log.info("OSS 文件删除成功: {}", objectKey);
+        } finally {
+            ossClient.shutdown();
+        }
+    }
 }

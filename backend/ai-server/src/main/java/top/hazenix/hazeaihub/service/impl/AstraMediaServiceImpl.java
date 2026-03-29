@@ -1,5 +1,6 @@
 package top.hazenix.hazeaihub.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,12 +11,16 @@ import top.hazenix.hazeaihub.entity.KbMedia;
 import top.hazenix.hazeaihub.entity.MediaStatus;
 import top.hazenix.hazeaihub.enums.ErrorCode;
 import top.hazenix.hazeaihub.exception.BusinessException;
+import top.hazenix.hazeaihub.bo.ParseMessage;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.mapper.KbMediaMapper;
 import top.hazenix.hazeaihub.service.IAstraMediaService;
+import top.hazenix.hazeaihub.producer.RedissonStreamProducer;
+import top.hazenix.hazeaihub.utils.AliOssUtil;
 import top.hazenix.hazeaihub.utils.Sha256Util;
 import top.hazenix.hazeaihub.vo.MediaResponse;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -30,6 +35,8 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
 
     private final KbMediaMapper mediaMapper;
     private final KbLibraryMapper libraryMapper;
+    private final AliOssUtil aliOssUtil;
+    private final RedissonStreamProducer streamProducer;
 
     // 允许的文件类型
     private static final List<String> ALLOWED_MIME_TYPES = List.of(
@@ -93,8 +100,14 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
             return toResponse(existing.get());
         }
 
-        // TODO: 上传到 OSS (暂用本地存储)
         String storagePath = "astra/" + libraryId + "/" + sha256;
+        String uploadUrl = null;
+        try {
+            uploadUrl = aliOssUtil.upload(file.getBytes(), storagePath);
+        } catch (IOException e) {
+            log.warn("上传文件到OSS失败");
+            throw new RuntimeException(e);
+        }
 
         // 创建媒体记录
         KbMedia media = KbMedia.builder()
@@ -102,7 +115,7 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
                 .fileName(file.getOriginalFilename())
                 .mimeType(mimeType)
                 .fileSize(fileSize)
-                .storagePath(storagePath)
+                .storagePath(uploadUrl)
                 .sha256(sha256)
                 .status(MediaStatus.PENDING.getCode())
                 .totalChunks(0)
@@ -112,7 +125,15 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
         mediaMapper.insert(media);
         log.info("媒体记录创建成功: id={}", media.getId());
 
-        // TODO: 发送解析消息到 Redis Stream
+        // 发送解析任务消息到 Redis Stream
+        String fileType = getFileType(mimeType);
+        ParseMessage parseMessage = ParseMessage.of(
+                media.getId(),
+                libraryId,
+                fileType,
+                uploadUrl
+        );
+        streamProducer.sendParseTask(parseMessage);
 
         return toResponse(media);
     }
@@ -175,8 +196,12 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权限删除此文件");
         }
 
-        // 删除分片记录
-        // TODO: 删除 OSS 文件
+        // 删除 OSS 文件 - 从完整 URL 中提取 objectKey
+        String storagePath = media.getStoragePath();
+        if (storagePath != null && storagePath.contains("://")) {
+            String objectKey = storagePath.substring(storagePath.lastIndexOf("/") + 1);
+            aliOssUtil.delete(objectKey);
+        }
 
         // 删除媒体记录
         mediaMapper.deleteById(mediaId);
@@ -191,20 +216,23 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
     }
 
     private MediaResponse toResponse(KbMedia media) {
-        return MediaResponse.builder()
-                .id(media.getId())
-                .libraryId(media.getLibraryId())
-                .fileName(media.getFileName())
-                .mimeType(media.getMimeType())
-                .fileSize(media.getFileSize())
-                .storagePath(media.getStoragePath())
-                .sha256(media.getSha256())
-                .status(media.getStatus())
-                .totalChunks(media.getTotalChunks())
-                .parsedChunks(media.getParsedChunks())
-                .errorMessage(media.getErrorMessage())
-                .createdAt(media.getCreatedAt())
-                .updatedAt(media.getUpdatedAt())
-                .build();
+        return BeanUtil.copyProperties(media, MediaResponse.class);
+    }
+
+    /**
+     * 将 MIME 类型映射为文件类型
+     */
+    private String getFileType(String mimeType) {
+        if (mimeType == null) {
+            return "UNKNOWN";
+        }
+        return switch (mimeType) {
+            case "application/pdf" -> "PDF";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "WORD";
+            case "image/jpeg", "image/png", "image/gif", "image/webp" -> "IMAGE";
+            case "audio/mpeg", "audio/wav" -> "AUDIO";
+            case "application/x-xmind" -> "XMIND";
+            default -> "UNKNOWN";
+        };
     }
 }

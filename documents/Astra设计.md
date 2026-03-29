@@ -781,15 +781,19 @@ setTimeout(() => eventSource.close(), 5 * 60 * 1000);
 
 ##### ==消息队列 技术选型==
 
-
-
-选择Redis Stream
+**选择 Redisson RStream（基于 Redis Stream）**
 
 * 主要优点
-  * 引入成本低；运维部署成本低
+  * **API 封装完善**：消息发送、消费、ACK 均有一行代码的简洁接口
+  * **延迟队列内置**：通过 `RDelayedQueue` 实现延迟重试，无需 Thread.sleep 阻塞
+  * **支持重试机制**：可配置最大重试次数和延迟时间
+  * **死信队列支持**：消息失败后可自动/手动移入 DLQ
+  * **消费者组管理**：简化了 XREADGROUP 的复杂度
 * 主要弊端
-  * 功能不完善
-  * 消息堆积占用大量内存
+  * 需引入 Redisson 依赖（约 500KB）
+  * 需要 Redis 5.0+（支持 Stream 数据结构）
+
+> 原生 Redis Stream API 较为底层，需要手动处理消费组、阻塞读取、消息 ACK 等。Redisson 对其进行了优雅封装，显著提升开发效率和代码可维护性。
 
 
 
@@ -820,19 +824,19 @@ astra-parse-group         -- 消费者组名
 **三、消费者组设计**
 
 ```
-                          ┌─ Consumer-A ──→ 处理消息 ──→ XACK
+                          ┌─ Consumer-A ──→ 处理消息 ──→ ACK
                           │
-XADD ──→ astra:parse:queue ──┼─ Consumer-B ──→ 处理消息 ──→ XACK  （竞争模式，每条消息只被一个消费者处理）
+astra:parse:queue ──┼─ Consumer-B ──→ 处理消息 ──→ ACK  （竞争模式，每条消息只被一个消费者处理）
                           │
-                          └─ Consumer-C ──→ 处理消息 ──→ XACK
+                          └─ Consumer-C ──→ 处理消息 ──→ ACK
 
 消费者数量可按需扩容（1-N），适合应对解析瓶颈
 ```
 
 - **并行度**：消费者数量 = `min(文件并发数, CPU 核心数)`，建议 2-4 个
-- **阻塞读取**：`XREADGROUP GROUP astra-parse-group <consumerName> BLOCK 5000 COUNT 1`
-  - BLOCK 5000：无消息时最多阻塞 5 秒，避免空转 CPU
-  - COUNT 1：每次取 1 条，保证公平分发给多个消费者
+- **阻塞读取**：使用 Redisson `RStream.read()` API
+  - 每次取 1 条，保证公平分发给多个消费者
+  - 无消息时阻塞等待，避免空转 CPU
 
 **四、处理流程**
 
@@ -840,11 +844,11 @@ XADD ──→ astra:parse:queue ──┼─ Consumer-B ──→ 处理消息 
 ┌─────────────────────────────────────────────────────────┐
 │                  消费者主循环                            │
 │                                                         │
-│  XREADGROUP BLOCK 5000ms                               │
+│  stream.read(consumerGroup, consumerName, params)     │
 │         │                                               │
 │         ▼                                               │
 │   ┌───────────┐                                         │
-│   │ 有消息？   │──否── 继续 BLOCK 等待新消息              │
+│   │ 有消息？   │──否── 继续阻塞等待新消息               │
 │   └─────┬─────┘                                         │
 │         │是                                             │
 │         ▼                                               │
@@ -853,7 +857,7 @@ XADD ──→ astra:parse:queue ──┼─ Consumer-B ──→ 处理消息 
 │   │ 生成Chunk │                                         │
 │   └─────┬─────┘                                         │
 │         │                                               │
-│         ├──成功───→ XACK ──→ 继续取下一条                │
+│         ├──成功───→ ACK ──→ 继续取下一条                │
 │         │                                               │
 │         └──失败                                         │
 │                │                                         │
@@ -862,10 +866,10 @@ XADD ──→ astra:parse:queue ──┼─ Consumer-B ──→ 处理消息 
 │            │                                            │
 │       是──→ retryCount++                                │
 │                │                                        │
-│                ├── XADD 同一消息回主队列（带更新后的retryCount）
-│                └── sleep(5秒) ──→ 继续取下一条           │
+│                └── RDelayedQueue.offerAsync()           │
+│                    (延迟5秒后自动重新入队)                │
 │                                                         │
-│           否──→ XADD 到 DLQ（带错误原因）──→ XACK 原消息 │
+│           否──→ 移入 DLQ ──→ ACK 原消息                 │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -874,7 +878,7 @@ XADD ──→ astra:parse:queue ──┼─ Consumer-B ──→ 处理消息 
 
 | 条件 | 动作 |
 |------|------|
-| 解析失败，`retryCount < 3` | 消息**重新入队**（delay 5秒），`retryCount++` |
+| 解析失败，`retryCount < 3` | 消息**重新入队**（通过 `RDelayedQueue` 延迟5秒），`retryCount++` |
 | 解析失败，`retryCount >= 3` | 消息移入 `astra:parse:dlq`，`media.status = FAILED` |
 | 系统宕机（未 ACK） | Redis Stream 保留未 ACK 消息，消费者重启后自动继续 |
 

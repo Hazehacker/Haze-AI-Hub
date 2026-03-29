@@ -95,6 +95,13 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Redisson for Redis Stream -->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson-spring-boot-starter</artifactId>
+            <version>3.37.0</version>
+        </dependency>
+
         <!-- PDFBox for PDF parsing -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>

@@ -1,10 +1,8 @@
 package top.hazenix.hazeaihub.parser;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Component;
-import top.hazenix.hazeaihub.consumer.ParseMessage;
+import top.hazenix.hazeaihub.bo.ParseMessage;
 import top.hazenix.hazeaihub.entity.KbChunk;
 import top.hazenix.hazeaihub.entity.KbMedia;
 import top.hazenix.hazeaihub.mapper.KbChunkMapper;
@@ -12,7 +10,6 @@ import top.hazenix.hazeaihub.mapper.KbMediaMapper;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 

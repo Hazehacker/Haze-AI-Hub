@@ -1,4 +1,4 @@
-package top.hazenix.hazeaihub.consumer;
+package top.hazenix.hazeaihub.bo;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

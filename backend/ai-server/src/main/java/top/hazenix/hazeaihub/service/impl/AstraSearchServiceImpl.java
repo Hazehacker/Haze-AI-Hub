@@ -16,6 +16,7 @@ import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.service.IAstraSearchService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
+import top.hazenix.hazeaihub.utils.AliOssUtil;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.util.ArrayList;

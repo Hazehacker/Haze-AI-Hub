@@ -3,6 +3,7 @@ package top.hazenix.hazeaihub.service;
 import org.springframework.web.multipart.MultipartFile;
 import top.hazenix.hazeaihub.vo.MediaResponse;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -17,7 +18,7 @@ public interface IAstraMediaService {
      * @param file 上传的文件
      * @return 媒体文件响应
      */
-    MediaResponse uploadFile(Long libraryId, Long userId, MultipartFile file);
+    MediaResponse uploadFile(Long libraryId, Long userId, MultipartFile file) throws IOException;
 
     /**
      * 获取知识库下的文件列表

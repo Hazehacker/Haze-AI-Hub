@@ -77,7 +77,11 @@ const isThinkingExpanded = ref(false)
 
 // 提取思考内容（从metadata或content中的think标签）
 const thinkingContent = computed(() => {
-  // 优先从metadata中获取
+  // 优先从 metadata 中获取（支持 reasoning_content 和 thinking_content 两种字段）
+  if (props.message.metadata?.reasoning_content) {
+    return props.message.metadata.reasoning_content
+  }
+    
   if (props.message.metadata?.thinking_content) {
     return props.message.metadata.thinking_content
   }

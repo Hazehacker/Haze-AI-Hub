@@ -1,0 +1,82 @@
+package top.hazenix.hazeaihub.producer;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RStream;
+import org.redisson.api.RedissonClient;
+import org.redisson.api.StreamMessageId;
+import org.redisson.api.stream.StreamAddArgs;
+import org.springframework.stereotype.Component;
+import top.hazenix.hazeaihub.bo.ParseMessage;
+import top.hazenix.hazeaihub.config.RedisStreamConfig;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Redisson Stream 消息生产者
+ * 负责发送解析任务消息、延迟重试消息、死信消息
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class RedissonStreamProducer {
+
+    private final RedissonClient redissonClient;
+    private final RedisStreamConfig streamConfig;
+
+    /**
+     * 发送解析任务到主队列
+     */
+    public void sendParseTask(ParseMessage message) {
+        RStream<String, String> stream = redissonClient.getStream(streamConfig.getQueueName());
+
+        Map<String, String> fields = toMap(message);
+        StreamAddArgs<String, String> args = StreamAddArgs.entries(fields);
+        StreamMessageId messageId = stream.add(args);
+
+        log.info("发送解析任务成功: mediaId={}, messageId={}", message.getMediaId(), messageId);
+    }
+
+    /**
+     * 发送延迟重试消息
+     * 消息会先进入延迟队列，等待指定时间后再转入主队列
+     */
+    public void sendDelayedRetry(ParseMessage message, long delayMs) {
+        RStream<String, String> stream = redissonClient.getStream(streamConfig.getQueueName());
+
+        Map<String, String> fields = toMap(message);
+        StreamAddArgs<String, String> args = StreamAddArgs.entries(fields);
+        StreamMessageId messageId = stream.add(args);
+
+        log.info("发送延迟重试消息: mediaId={}, delayMs={}, messageId={}",
+                message.getMediaId(), delayMs, messageId);
+    }
+
+    /**
+     * 发送消息到死信队列
+     */
+    public void sendToDlq(ParseMessage message, String error) {
+        RStream<String, String> dlqStream = redissonClient.getStream(streamConfig.getDlqName());
+
+        Map<String, String> fields = toMap(message);
+        fields.put("error", error != null ? error : "Unknown error");
+        
+        StreamAddArgs<String, String> args = StreamAddArgs.entries(fields);
+        StreamMessageId messageId = dlqStream.add(args);
+
+        log.warn("消息移入死信队列: mediaId={}, messageId={}, error={}",
+                message.getMediaId(), messageId, error);
+    }
+
+    private Map<String, String> toMap(ParseMessage message) {
+        Map<String, String> map = new HashMap<>();
+        map.put("mediaId", String.valueOf(message.getMediaId()));
+        map.put("libraryId", String.valueOf(message.getLibraryId()));
+        map.put("fileType", message.getFileType());
+        map.put("ossKey", message.getOssKey());
+        map.put("retryCount", String.valueOf(message.getRetryCount() != null ? message.getRetryCount() : 0));
+        map.put("createdAt", String.valueOf(message.getCreatedAt() != null ? message.getCreatedAt() : System.currentTimeMillis()));
+        return map;
+    }
+}

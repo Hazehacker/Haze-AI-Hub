@@ -1,6 +1,6 @@
 package top.hazenix.hazeaihub.parser;
 
-import top.hazenix.hazeaihub.consumer.ParseMessage;
+import top.hazenix.hazeaihub.bo.ParseMessage;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.util.List;
