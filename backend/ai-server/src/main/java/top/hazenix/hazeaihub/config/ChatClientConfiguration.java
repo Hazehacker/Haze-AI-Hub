@@ -5,15 +5,16 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import top.hazenix.hazeaihub.adviser.ReasoningContentAdvisor;
 import top.hazenix.hazeaihub.constant.PromptConstant;
 
 @Configuration
 public class ChatClientConfiguration {
 
     @Bean
-    public ChatClient chatClient(ChatModel model) {
+    public ChatClient chatClient(DashScopeChatModel model) {
         return ChatClient.builder(model)
-                .defaultSystem("您是Haze AI Hub 的聊天助手，你的名字叫小雾，具备深度思考能力，能以友好、乐于助人和愉快的方式解答使用者的各种问题。。")
+                .defaultAdvisors(new ReasoningContentAdvisor(0))
                 .build();
     }
 

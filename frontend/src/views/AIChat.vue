@@ -588,9 +588,7 @@ const sendMessage = async () => {
     const decoder = new TextDecoder('utf-8')
     let accumulatedContent = ''  // 累积内容
     let hasError = false  // 标记是否有错误
-    let thinkingStartTime = null  // 思考开始时间
-    let thinkingEndTime = null  // 思考结束时间
-    
+
     while (true) {
       try {
         const { value, done } = await reader.read()
@@ -618,37 +616,13 @@ const sendMessage = async () => {
           break
         }
         
-        // 检测思考过程的开始和结束
-        if (newContent.includes('<think>') && !thinkingStartTime) {
-          thinkingStartTime = Date.now()
-        }
-        if (newContent.includes('</think>') && thinkingStartTime && !thinkingEndTime) {
-          thinkingEndTime = Date.now()
-        }
-        
         accumulatedContent += newContent  // 追加新内容
         
         await nextTick(() => {
           // 更新消息，使用累积的内容
-          const updatedMessage = {
-            ...assistantMessage,
-            content: accumulatedContent,
-            metadata: {
-              ...assistantMessage.metadata
-            }
-          }
-          
-          // 如果思考过程已完成，添加思考时长到 metadata
-          if (thinkingEndTime && thinkingStartTime) {
-            const duration = (thinkingEndTime - thinkingStartTime) / 1000
-            updatedMessage.metadata = {
-              ...updatedMessage.metadata,
-              thinking_duration: duration
-            }
-          }
-          
+          assistantMessage.content = accumulatedContent
           const lastIndex = currentMessages.value.length - 1
-          currentMessages.value.splice(lastIndex, 1, updatedMessage)
+          currentMessages.value.splice(lastIndex, 1, assistantMessage)
         })
         await scrollToBottom()
       } catch (readError) {
@@ -720,9 +694,7 @@ const retryMessage = async (messageIndex) => {
     const decoder = new TextDecoder('utf-8')
     let accumulatedContent = ''
     let hasError = false
-    let thinkingStartTime = null
-    let thinkingEndTime = null
-    
+
     while (true) {
       try {
         const { value, done } = await reader.read()
@@ -747,36 +719,12 @@ const retryMessage = async (messageIndex) => {
           break
         }
         
-        // 检测思考过程的开始和结束
-        if (newContent.includes('<think>') && !thinkingStartTime) {
-          thinkingStartTime = Date.now()
-        }
-        if (newContent.includes('</think>') && thinkingStartTime && !thinkingEndTime) {
-          thinkingEndTime = Date.now()
-        }
-        
         accumulatedContent += newContent
         
         await nextTick(() => {
-          const updatedMessage = {
-            ...assistantMessage,
-            content: accumulatedContent,
-            metadata: {
-              ...assistantMessage.metadata
-            }
-          }
-          
-          // 如果思考过程已完成，添加思考时长到 metadata
-          if (thinkingEndTime && thinkingStartTime) {
-            const duration = (thinkingEndTime - thinkingStartTime) / 1000
-            updatedMessage.metadata = {
-              ...updatedMessage.metadata,
-              thinking_duration: duration
-            }
-          }
-          
+          assistantMessage.content = accumulatedContent
           const lastIndex = currentMessages.value.length - 1
-          currentMessages.value.splice(lastIndex, 1, updatedMessage)
+          currentMessages.value.splice(lastIndex, 1, assistantMessage)
         })
         await scrollToBottom()
       } catch (readError) {

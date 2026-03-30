@@ -17,6 +17,7 @@ import top.hazenix.hazeaihub.service.IChatSessionService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -78,15 +79,7 @@ public class ChatSessionServiceImpl implements IChatSessionService {
         }
 
         // 身份校验
-        ChatSession session = chatSessionMapper.selectById(sessionId);
-        if (session == null) {
-            throw new RuntimeException("会话不存在");
-        }
-        
-        Long currentUserId = BaseContext.getCurrentId();
-        if (currentUserId != null && !currentUserId.equals(session.getUserId())) {
-            throw new RuntimeException(MessageConstant.NOT_AUTHED_TO_DELETE);
-        }
+        ChatSession session = verifySessionAccess(sessionId);
 
         LambdaUpdateWrapper<ChatSession> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(ChatSession::getId, sessionId);
@@ -114,15 +107,7 @@ public class ChatSessionServiceImpl implements IChatSessionService {
         }
 
         // 身份校验
-        ChatSession session = chatSessionMapper.selectById(sessionId);
-        if (session == null) {
-            throw new RuntimeException("会话不存在");
-        }
-        
-        Long currentUserId = BaseContext.getCurrentId();
-        if (currentUserId != null && !currentUserId.equals(session.getUserId())) {
-            throw new RuntimeException(MessageConstant.NOT_AUTHED_TO_DELETE);
-        }
+        ChatSession session = verifySessionAccess(sessionId);
 
         // 软删除
         LambdaUpdateWrapper<ChatSession> updateWrapper = new LambdaUpdateWrapper<>();
@@ -137,6 +122,21 @@ public class ChatSessionServiceImpl implements IChatSessionService {
     @Override
     public ChatSession getSessionById(Long sessionId) {
         return chatSessionMapper.selectById(sessionId);
+    }
+
+    /**
+     * 验证会话访问权限，返回会话对象
+     */
+    private ChatSession verifySessionAccess(Long sessionId) {
+        ChatSession session = chatSessionMapper.selectById(sessionId);
+        if (session == null) {
+            throw new RuntimeException("会话不存在");
+        }
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId != null && !currentUserId.equals(session.getUserId())) {
+            throw new RuntimeException(MessageConstant.NOT_AUTHED_TO_DELETE);
+        }
+        return session;
     }
     
     @Override
@@ -181,27 +181,41 @@ public class ChatSessionServiceImpl implements IChatSessionService {
         }
         
         List<ChatSession> sessions = chatSessionMapper.selectList(queryWrapper);
-        
+
+        if (sessions.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 批量查询：收集所有sessionIds，一次性获取消息数量和最后一条消息
+        List<Long> sessionIds = sessions.stream().map(ChatSession::getId).toList();
+
+        // 批量获取消息数量
+        LambdaQueryWrapper<ChatMessage> countQuery = new LambdaQueryWrapper<>();
+        countQuery.eq(ChatMessage::getStatus, true);
+        countQuery.in(ChatMessage::getSessionId, sessionIds);
+        List<ChatMessage> allMessages = chatMessageMapper.selectList(countQuery);
+
+        // 按sessionId分组统计消息数量
+        java.util.Map<Long, Long> countMap = allMessages.stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        ChatMessage::getSessionId,
+                        java.util.stream.Collectors.counting()));
+
+        // 获取每个会话的最后一条消息（按sessionId分组，取时间最晚的）
+        java.util.Map<Long, String> lastMessageMap = allMessages.stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        ChatMessage::getSessionId,
+                        java.util.stream.Collectors.collectingAndThen(
+                                java.util.stream.Collectors.maxBy(
+                                        Comparator.comparing(ChatMessage::getCreatedAt)),
+                                optMsg -> optMsg.map(m -> {
+                                    String content = m.getContent();
+                                    return content.length() > 50 ? content.substring(0, 50) + "..." : content;
+                                }).orElse(null))));
+
         // 转换为DTO
         List<SessionListDTO> result = new ArrayList<>();
         for (ChatSession session : sessions) {
-            // 获取消息数量
-            LambdaQueryWrapper<ChatMessage> msgQuery = new LambdaQueryWrapper<>();
-            msgQuery.eq(ChatMessage::getSessionId, session.getId());
-            msgQuery.eq(ChatMessage::getStatus, true);
-            Long messageCount = chatMessageMapper.selectCount(msgQuery);
-            
-            // 获取最后一条消息预览
-            List<ChatMessage> lastMessages = chatMessageMapper.selectBySessionIdOrderByCreatedAt(
-                    session.getId(), 1);
-            String lastMessagePreview = null;
-            if (!lastMessages.isEmpty()) {
-                String content = lastMessages.get(0).getContent();
-                lastMessagePreview = content.length() > 50 
-                        ? content.substring(0, 50) + "..." 
-                        : content;
-            }
-            
             SessionListDTO dto = SessionListDTO.builder()
                     .id(session.getId())
                     .title(session.getTitle())
@@ -209,13 +223,12 @@ public class ChatSessionServiceImpl implements IChatSessionService {
                     .groupId(session.getGroupId())
                     .isTop(session.getIsTop())
                     .lastActiveAt(session.getLastActiveAt())
-                    .messageCount(messageCount.intValue())
-                    .lastMessagePreview(lastMessagePreview)
+                    .messageCount(countMap.getOrDefault(session.getId(), 0L).intValue())
+                    .lastMessagePreview(lastMessageMap.get(session.getId()))
                     .build();
-            
             result.add(dto);
         }
-        
+
         log.info("获取会话列表成功: count={}", result.size());
         return result;
     }
