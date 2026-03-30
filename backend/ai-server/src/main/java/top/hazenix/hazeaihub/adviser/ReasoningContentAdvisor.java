@@ -69,7 +69,14 @@ public class ReasoningContentAdvisor implements BaseAdvisor {
         }
 
         logger.debug(String.valueOf(resp.getResults().get(0).getOutput().getMetadata()));
-        String reasoningContent = String.valueOf(resp.getResults().get(0).getOutput().getMetadata().get("reasoningContent"));
+        // 注意：必须先做 instanceof 类型判断，不能用 String.valueOf()。
+        // String.valueOf(null) 会返回字符串字面量 "null"，导致 hasText("null") = true，
+        // 污染所有 answer chunk 为 <think>null</think>answer_chunk。
+        if (resp.getResults() == null || resp.getResults().isEmpty()) {
+            return chatClientResponse;
+        }
+        Object rawReasoning = resp.getResults().get(0).getOutput().getMetadata().get("reasoningContent");
+        String reasoningContent = (rawReasoning instanceof String s) ? s : null;
 
         if (StringUtils.hasText(reasoningContent)) {
             List<Generation> thinkGenerations = resp.getResults().stream()

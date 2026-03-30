@@ -1,21 +1,18 @@
 package top.hazenix.hazeaihub.service.impl;
 
-import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import top.hazenix.hazeaihub.constant.RoleConstant;
 import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.entity.ChatMessage;
@@ -26,7 +23,6 @@ import top.hazenix.hazeaihub.service.IChatSessionService;
 import top.hazenix.hazeaihub.service.ITitleGenerationService;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 对话服务实现
@@ -41,29 +37,24 @@ public class ChatServiceImpl implements IChatService {
     private final IChatMessageService chatMessageService;
     private final ITitleGenerationService titleGenerationService;
     private final ChatModel textChatModel;
-    private final ChatClient chatClient;
-
 
     /**
-     * 处理普通文本聊天请求（使用chatClient实现流式对话）
-     * @param groupId        分组ID
-     * @param sessionId      会话ID
-     * @param prompt         提示语
-     * @param enableThinking 是否启用思考过程
-     * @param thinkingBudget 思考 token 预算
-     * @param model          模型名称
+     * 处理普通文本聊天请求（直接使用 ChatModel 实现流式对话）
      */
     @Override
     @Transactional
-    public Flux<Map<String, String>> textChat(Long groupId, Long sessionId, String prompt, Boolean enableThinking, Integer thinkingBudget, String model) {
+    public Flux<String> textChat(Long groupId, Long sessionId, String prompt,
+                                 Boolean enableThinking, Integer thinkingBudget, String model) {
         log.info("开始处理textChat请求: groupId={}, sessionId={}, prompt={}", groupId, sessionId, prompt);
 
         // 1. 处理会话创建
         boolean isNewSession = (sessionId == null);
         Long finalSessionId = createSessionIfNeeded(isNewSession, sessionId, groupId);
 
-        // 构建初始事件流（新会话）
-        Flux<Map<String, String>> initialFlux = buildSessionCreatedFlux(isNewSession, finalSessionId);
+        // 构建初始事件流（新会话通知）
+        Flux<String> initialFlux = isNewSession
+                ? Flux.just("SESSION_CREATED:" + finalSessionId)
+                : Flux.empty();
 
         // 2. 保存用户消息
         chatMessageService.saveUserMessage(finalSessionId, prompt);
@@ -80,47 +71,59 @@ public class ChatServiceImpl implements IChatService {
                 }
             }
         }
+        // 添加当前用户消息
+        historyMessages.add(new UserMessage(prompt));
 
-        // 5. 使用chatClient进行流式对话（传入历史消息）
-        Flux<String> responseFlux = chatClient
-                .prompt()
-                .messages(historyMessages)                    // 传入历史消息
-                .user(prompt)
-                .options(DashScopeChatOptions.builder()
-                        .model(model != null ? model : "qwen-plus")
-                        .enableThinking(enableThinking)
-                        .withMaxToken(thinkingBudget)
-                        .build())
-                .stream()
-                .content();
+        // 4. 直接使用 ChatModel 流式调用（绕过 ChatClient advisor 链，避免流式 enableThinking 缺陷）
+        DashScopeChatOptions runtimeOptions = DashScopeChatOptions.builder()
+                .model(model != null ? model : "qwen-plus")
+                .enableThinking(enableThinking)
+                .build();
+        if (thinkingBudget != null) {
+            runtimeOptions.setMaxTokens(thinkingBudget);
+        }
 
-        // 6. 处理流式响应
+        Prompt chatPrompt = new Prompt(historyMessages, runtimeOptions);
+        Flux<ChatResponse> chatResponseFlux = textChatModel.stream(chatPrompt);
+
+        // 5. 解析流式响应，直接输出 <think> 标签包裹的思考内容 + 裸文本回答
         StringBuilder fullResponseBuilder = new StringBuilder();
         StringBuilder fullReasoningBuilder = new StringBuilder();
-        AtomicBoolean isInThinking = new AtomicBoolean(false);
 
-        Flux<Map<String, String>> chatFlux = responseFlux
-                .map(content -> {
-                    Map<String, String> result = new HashMap<>();
-                    
-                    // 判断是否是思考内容（以<think>开头）
-                    if (content.startsWith("<think>") && content.endsWith("</think>")) {
-                        String thinkingContent = content.substring(7, content.length() - 8); // 去掉<think>和</think>
-                        fullReasoningBuilder.append(thinkingContent);
-                        result.put("type", "thinking");
-                        result.put("content", thinkingContent);
-                        isInThinking.set(true);
-                    } else {
-                        // 回答内容
-                        fullResponseBuilder.append(content);
-                        result.put("type", "answer");
-                        result.put("content", content);
-                        isInThinking.set(false);
+        Flux<String> chatFlux = chatResponseFlux
+                .concatMap(chatResponse -> {
+                    if (chatResponse.getResults() == null || chatResponse.getResults().isEmpty()) {
+                        return Flux.empty();
                     }
-                    
-                    return result;
+                    var output = chatResponse.getResults().get(0).getOutput();
+                    var chunkMetadata = output.getMetadata();
+                    String text = output.getText();
+
+                    // 诊断日志
+                    if (!chunkMetadata.isEmpty()) {
+                        log.debug("[chunk-meta] keys={} | reasoningContent={}",
+                                chunkMetadata.keySet(),
+                                chunkMetadata.get("reasoningContent"));
+                    }
+
+                    // 提取思考内容（DashScope 使用 camelCase key: "reasoningContent"）
+                    String thinkingChunk = null;
+                    Object raw = chunkMetadata.get("reasoningContent");
+                    if (raw instanceof String s && StringUtils.hasText(s)) {
+                        thinkingChunk = s;
+                    }
+
+                    List<String> results = new ArrayList<>();
+                    if (thinkingChunk != null) {
+                        fullReasoningBuilder.append(thinkingChunk);
+                        results.add("<think>" + thinkingChunk + "</think>");
+                    }
+                    if (StringUtils.hasText(text)) {
+                        fullResponseBuilder.append(text);
+                        results.add(text);
+                    }
+                    return Flux.fromIterable(results);
                 })
-                .filter(map -> !map.isEmpty() && map.get("content") != null)
                 .doOnComplete(() -> {
                     // 流结束时保存数据
                     String fullResponse = fullResponseBuilder.toString();
@@ -142,14 +145,7 @@ public class ChatServiceImpl implements IChatService {
                         titleGenerationService.generateAndUpdateTitle(finalSessionId);
                     }
                 })
-                .doOnError(error -> log.error("流式对话出错", error))
-                .onErrorResume(e -> {
-                    log.warn("流式响应错误: {}", e.getMessage());
-                    Map<String, String> errorResult = new HashMap<>();
-                    errorResult.put("type", "error");
-                    errorResult.put("content", e.getMessage());
-                    return Flux.just(errorResult);
-                });
+                .doOnError(error -> log.error("流式对话出错", error));
 
         return initialFlux.concatWith(chatFlux);
     }
@@ -179,15 +175,5 @@ public class ChatServiceImpl implements IChatService {
             log.error("创建会话失败", e);
             throw new RuntimeException("创建会话失败: " + e.getMessage());
         }
-    }
-
-    private Flux<Map<String, String>> buildSessionCreatedFlux(boolean isNewSession, Long sessionId) {
-        if (!isNewSession) {
-            return Flux.empty();
-        }
-        Map<String, String> event = new HashMap<>();
-        event.put("type", "session-created");
-        event.put("content", String.valueOf(sessionId));
-        return Flux.just(event);
     }
 }

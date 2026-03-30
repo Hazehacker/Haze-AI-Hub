@@ -594,39 +594,26 @@ const sendMessage = async () => {
         const { value, done } = await reader.read()
         if (done) break
         
-        // 累积新内容
+        // 累积新内容（已经是纯文本，包含 <think> 标签和回答文本）
         const newContent = decoder.decode(value)
-        
-        // 检查是否是错误消息
-        if (newContent.includes('"type":"error"')) {
-          hasError = true
-          try {
-            // 尝试解析错误消息
-            const errorMatch = newContent.match(/"content":"([^"]+)"/)
-            if (errorMatch && errorMatch[1]) {
-              accumulatedContent = errorMatch[1]
-              assistantMessage.role = 'error'
-              assistantMessage.type = 'error'
-            }
-          } catch (e) {
-            accumulatedContent = '服务暂时不可用，请稍后重试'
-            assistantMessage.role = 'error'
-            assistantMessage.type = 'error'
-          }
-          break
-        }
-        
-        accumulatedContent += newContent  // 追加新内容
+        accumulatedContent += newContent
         
         await nextTick(() => {
           // 更新消息，使用累积的内容
-          assistantMessage.content = accumulatedContent
+          // 创建新对象确保 Vue 响应式系统检测到变化
           const lastIndex = currentMessages.value.length - 1
-          currentMessages.value.splice(lastIndex, 1, assistantMessage)
+          currentMessages.value[lastIndex] = {
+            ...currentMessages.value[lastIndex],
+            content: accumulatedContent
+          }
         })
         await scrollToBottom()
       } catch (readError) {
         console.error('读取流错误:', readError)
+        hasError = true
+        accumulatedContent = readError.message || '服务暂时不可用，请稍后重试'
+        assistantMessage.role = 'error'
+        assistantMessage.type = 'error'
         break
       }
     }
@@ -701,38 +688,26 @@ const retryMessage = async (messageIndex) => {
         if (done) break
         
         const newContent = decoder.decode(value)
-        
-        if (newContent.includes('"type":"error"')) {
-          hasError = true
-          try {
-            const errorMatch = newContent.match(/"content":"([^"]+)"/)
-            if (errorMatch && errorMatch[1]) {
-              accumulatedContent = errorMatch[1]
-              assistantMessage.role = 'error'
-              assistantMessage.type = 'error'
-            }
-          } catch (e) {
-            accumulatedContent = '服务暂时不可用，请稍后重试'
-            assistantMessage.role = 'error'
-            assistantMessage.type = 'error'
-          }
-          break
-        }
-        
         accumulatedContent += newContent
         
         await nextTick(() => {
-          assistantMessage.content = accumulatedContent
           const lastIndex = currentMessages.value.length - 1
-          currentMessages.value.splice(lastIndex, 1, assistantMessage)
+          currentMessages.value[lastIndex] = {
+            ...currentMessages.value[lastIndex],
+            content: accumulatedContent
+          }
         })
         await scrollToBottom()
       } catch (readError) {
         console.error('读取流错误:', readError)
+        hasError = true
+        accumulatedContent = readError.message || '服务暂时不可用，请稍后重试'
+        assistantMessage.role = 'error'
+        assistantMessage.type = 'error'
         break
       }
     }
-    
+
     if (hasError) {
       const lastIndex = currentMessages.value.length - 1
       currentMessages.value[lastIndex].role = 'error'

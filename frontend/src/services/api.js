@@ -5,6 +5,53 @@ import { useUserStore } from '@/stores/user'
 
 const BASE_URL = 'http://localhost:8080/api/v1'
 
+/**
+ * 解析单个 SSE 事件块（后端返回 Flux<String>，Spring 以纯文本 data: 格式输出，无 JSON 编码）
+ *
+ * 内容约定：
+ *   SESSION_CREATED:<id>   新会话创建通知
+ *   ERROR:<message>        错误通知
+ *   <think>...</think>     思考内容片段
+ *   其他文本               回答内容片段
+ *
+ * @param {string} eventBlock - 一个完整的 SSE 事件（由 \n\n 分隔）
+ * @param {Function} onSessionCreated - 新会话创建回调 (sessionId: string) => void
+ * @returns {{ content?: string, error?: string }}
+ */
+function parseSSEEvent(eventBlock, onSessionCreated) {
+  const lines = eventBlock.split('\n')
+  const dataLines = []
+
+  for (const line of lines) {
+    if (line.startsWith('data:')) {
+      dataLines.push(line.substring(5))
+    }
+    // 忽略 event:, id:, retry:, 注释行 (:)
+  }
+
+  if (dataLines.length === 0) return {} // 空事件（心跳等）
+
+  // 多行 data 拼回原始内容（Spring SSE 会把换行内容拆成多个 data: 行）
+  const data = dataLines.join('\n')
+
+  // 会话创建通知
+  if (data.startsWith('SESSION_CREATED:')) {
+    const sessionId = data.substring('SESSION_CREATED:'.length).trim()
+    if (onSessionCreated) {
+      onSessionCreated(sessionId)
+    }
+    return {}
+  }
+
+  // 错误通知
+  if (data.startsWith('ERROR:')) {
+    return { error: data.substring('ERROR:'.length) }
+  }
+
+  // 默认：内容 chunk（<think>...</think> 或回答文本）
+  return { content: data }
+}
+
 export const chatAPI = {
   // 创建新会话
   async createSession(userId, type, title = null) {
@@ -45,7 +92,7 @@ export const chatAPI = {
     }
   },
 
-  // 发送聊天消息（带思考过程）- 支持 SSE 事件
+  // 发送聊天消息（带思考过程）- 解析 SSE 事件流
   async sendMessage(data, sessionId, onSessionCreated) {
     try {
       const url = `${BASE_URL}/ai/text-chat`
@@ -58,26 +105,18 @@ export const chatAPI = {
       // 根据数据类型设置不同的请求体
       let body
       if (data instanceof FormData) {
-        // FormData 会自动设置 Content-Type
-        // 将 sessionId 添加到 FormData 中（首条消息时为 null）
         if (sessionId) {
           data.append('sessionId', sessionId)
         }
-        // 默认启用思考过程
         if (!data.has('enableThinking')) {
           data.append('enableThinking', 'true')
-        }
-        // 设置思考预算（可选）
-        if (!data.has('thinkingBudget')) {
-          data.append('thinkingBudget', '10000')
         }
         body = data
       } else {
         headers['Content-Type'] = 'application/x-www-form-urlencoded'
         const params = new URLSearchParams({ 
           prompt: data,
-          enableThinking: 'true',
-          thinkingBudget: '10000'
+          enableThinking: 'true'
         })
         if (sessionId) {
           params.append('sessionId', sessionId)
@@ -92,7 +131,6 @@ export const chatAPI = {
       })
 
       if (!response.ok) {
-        // 处理 401 未授权错误
         if (response.status === 401) {
           ElMessage.error('请先登录')
           throw new Error('请先登录')
@@ -100,52 +138,49 @@ export const chatAPI = {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      // 返回一个包装的 reader，可以处理 SSE 事件
+      // 返回 SSE 解析包装的 reader，自动处理 data: 前缀和命名事件
       const reader = response.body.getReader()
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
-      
+
       return {
         async read() {
-          const { value, done } = await reader.read()
-          if (done) return { value: undefined, done: true }
-          
-          const chunk = decoder.decode(value, { stream: true })
-          buffer += chunk
-          
-          // 检查是否包含 SSE 事件
-          if (buffer.includes('event: session-created')) {
-            const lines = buffer.split('\n')
-            let eventData = null
-            
-            for (let i = 0; i < lines.length; i++) {
-              if (lines[i].startsWith('event: session-created')) {
-                // 下一行应该是 data
-                if (i + 1 < lines.length && lines[i + 1].startsWith('data: ')) {
-                  const dataStr = lines[i + 1].substring(6) // 移除 "data: "
-                  try {
-                    eventData = JSON.parse(dataStr)
-                    if (onSessionCreated && eventData.sessionId) {
-                      onSessionCreated(eventData.sessionId)
-                    }
-                  } catch (e) {
-                    console.error('解析 session-created 事件失败:', e)
-                  }
+          while (true) {
+            const { value, done } = await reader.read()
+
+            if (done) {
+              // 处理缓冲区中剩余的内容
+              if (buffer.trim()) {
+                const result = parseSSEEvent(buffer, onSessionCreated)
+                buffer = ''
+                if (result.error) {
+                  throw new Error(result.error)
                 }
-                // 移除已处理的事件
-                buffer = lines.slice(i + 2).join('\n')
-                break
+                if (result.content) {
+                  return { value: new TextEncoder().encode(result.content), done: false }
+                }
+              }
+              return { value: undefined, done: true }
+            }
+
+            buffer += decoder.decode(value, { stream: false })
+
+            // 按 \n\n 分隔解析完整的 SSE 事件
+            // 关键：每收到一个完整的 SSE 事件就立即返回，实现真正的流式
+            while (buffer.includes('\n\n')) {
+              const idx = buffer.indexOf('\n\n')
+              const eventBlock = buffer.substring(0, idx)
+              buffer = buffer.substring(idx + 2)
+
+              const parsed = parseSSEEvent(eventBlock, onSessionCreated)
+              if (parsed.error) {
+                throw new Error(parsed.error)
+              }
+              if (parsed.content) {
+                return { value: new TextEncoder().encode(parsed.content), done: false }
               }
             }
-          }
-          
-          // 返回非事件的内容
-          const content = buffer.replace(/event: .*\ndata: .*\n\n/g, '')
-          buffer = ''
-          
-          return { 
-            value: new TextEncoder().encode(content), 
-            done: false 
+            // 尚无完整事件，继续读取
           }
         }
       }

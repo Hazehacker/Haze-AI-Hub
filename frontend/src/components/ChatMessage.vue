@@ -73,7 +73,7 @@ import 'highlight.js/styles/github-dark.css'
 const contentRef = ref(null)
 const copied = ref(false)
 const copyButtonTitle = computed(() => copied.value ? '已复制' : '复制内容')
-const isThinkingExpanded = ref(false)
+const isThinkingExpanded = ref(true)
 
 // 提取思考内容（从metadata或content中的think标签）
 const thinkingContent = computed(() => {
@@ -86,21 +86,41 @@ const thinkingContent = computed(() => {
     return props.message.metadata.thinking_content
   }
   
-  // 如果metadata中没有，尝试从content中提取think标签内容
+  // 从 content 中提取所有 <think> 块内容（流式场景下有多个）
   const content = props.message.content || ''
-  const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/)
-  if (thinkMatch && thinkMatch[1]) {
-    return thinkMatch[1].trim()
+  const blocks = []
+  const regex = /<think>([\s\S]*?)<\/think>/g
+  let match
+  while ((match = regex.exec(content)) !== null) {
+    if (match[1]) {
+      blocks.push(match[1])
+    }
   }
   
-  return ''
+  // 处理流式场景下最后一个未闭合的 <think> 块
+  const lastOpen = content.lastIndexOf('<think>')
+  const lastClose = content.lastIndexOf('</think>')
+  if (lastOpen !== -1 && lastOpen > lastClose) {
+    const incomplete = content.substring(lastOpen + 7)
+    if (incomplete.trim()) {
+      blocks.push(incomplete)
+    }
+  }
+  
+  return blocks.join('')
 })
 
 // 获取不包含think标签的纯内容
 const pureContent = computed(() => {
   const content = props.message.content || ''
-  // 移除think标签及其内容
-  return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+  // 移除所有已闭合的 <think>...</think> 块
+  let result = content.replace(/<think>[\s\S]*?<\/think>/g, '')
+  // 移除流式场景下最后一个未闭合的 <think> 块
+  const lastOpen = result.lastIndexOf('<think>')
+  if (lastOpen !== -1) {
+    result = result.substring(0, lastOpen)
+  }
+  return result.trim()
 })
 
 // 检查是否有思考内容
