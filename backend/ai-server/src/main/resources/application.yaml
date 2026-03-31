@@ -121,3 +121,19 @@ astra:
     enable-debug: true
     enable-open-api: true
     enable-group: true
+  query-rewrite:
+    enabled: true
+    model: qwen-turbo
+    max-tokens: 128
+    temperature: 0.3
+  search:
+    fusion:
+      alpha: 0.5
+      threshold: 0.3
+    top-k:
+      bm25: 50
+      vector: 50
+  rerank:
+    enabled: true
+    model: bge-reranker-v2-m3
+    top-k: 10

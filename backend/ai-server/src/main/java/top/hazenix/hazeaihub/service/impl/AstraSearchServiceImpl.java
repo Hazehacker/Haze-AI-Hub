@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import top.hazenix.hazeaihub.config.AstraProperties;
 import top.hazenix.hazeaihub.dto.AstraChatRequest;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.entity.KbChunk;
@@ -21,6 +22,7 @@ import top.hazenix.hazeaihub.mapper.QaEmbeddingMapper;
 import top.hazenix.hazeaihub.mapper.QaPairMapper;
 import top.hazenix.hazeaihub.service.IAstraSearchService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
+import top.hazenix.hazeaihub.service.IQueryRewriteService;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.util.*;
@@ -41,6 +43,8 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     private final IChatSessionService chatSessionService;
     private final DashScopeEmbeddingModel embeddingModel;
     private final ChatClient astraClient;
+    private final IQueryRewriteService queryRewriteService;
+    private final AstraProperties astraProperties;
 
     // 混合检索参数
     private static final int BM25_TOP_K = 50;
@@ -59,20 +63,31 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             throw new BusinessException(ErrorCode.ASTRA_LIBRARY_EMPTY);
         }
 
-        // 2. BM25 关键词检索
-        List<ChunkResponse> bm25Results = bm25Search(libraryId, query, BM25_TOP_K);
+        // 2. Query 重写（可选）
+        String rewrittenQuery = queryRewriteService.rewrite(query);
 
-        // 3. 向量相似度检索
-        List<ChunkResponse> vectorResults = vectorSearch(libraryId, query, VECTOR_TOP_K);
+        // 3. BM25 + 向量双路召回（记录分项分数）
+        int bm25TopK = astraProperties.getSearch().getTopK().getBm25();
+        int vectorTopK = astraProperties.getSearch().getTopK().getVector();
+
+        List<ChunkResponse> bm25Results = bm25Search(libraryId, rewrittenQuery, bm25TopK);
+        List<ChunkResponse> vectorResults = vectorSearch(libraryId, rewrittenQuery, vectorTopK);
 
         // 4. QA 向量检索
-        List<ChunkResponse> qaResults = qaVectorSearch(libraryId, query, QA_TOP_K);
+        List<ChunkResponse> qaResults = qaVectorSearch(libraryId, rewrittenQuery, QA_TOP_K);
 
-        // 5. RRF 合并去重（包含 QA 结果）
+        // 5. 归一化 + 加权融合
+        double alpha = astraProperties.getSearch().getFusion().getAlpha();
+        List<ChunkResponse> fusedResults = normalizeAndFuse(bm25Results, vectorResults, alpha);
+
+        // 6. RRF 合并去重（包含 QA 结果）
         List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, qaResults, topK);
 
-        // 6. 返回合并后的结果
-        return mergedResults;
+        // 7. 阈值过滤
+        double threshold = astraProperties.getSearch().getFusion().getThreshold();
+        List<ChunkResponse> filteredResults = thresholdFilter(mergedResults, threshold);
+
+        return filteredResults;
     }
 
     /**
@@ -84,16 +99,42 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             float[] queryEmbedding = embeddingModel.embed(query);
 
             // 2. 执行向量检索
-            List<KbChunk> chunks = chunkMapper.vectorSearch(libraryId, queryEmbedding, topK);
+            List<Map<String, Object>> resultMaps = chunkMapper.vectorSearch(libraryId, queryEmbedding, topK);
 
-            // 3. 转换为 ChunkResponse
-            return chunks.stream()
-                    .map(chunk -> toChunkResponse(chunk, null))
+            // 3. 转换为 ChunkResponse 并设置向量分数
+            return resultMaps.stream()
+                    .map(map -> {
+                        KbChunk chunk = mapToChunk(map);
+                        ChunkResponse response = toChunkResponse(chunk, null);
+                        // 设置向量相似度分数
+                        Object similarity = map.get("similarity");
+                        if (similarity != null) {
+                            response.setVectorScore(((Number) similarity).floatValue());
+                        }
+                        return response;
+                    })
                     .collect(Collectors.toList());
         } catch (Exception e) {
             log.error("向量检索失败: libraryId={}, query={}", libraryId, query, e);
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * 将 Map 转换为 KbChunk
+     */
+    private KbChunk mapToChunk(Map<String, Object> map) {
+        KbChunk chunk = new KbChunk();
+        chunk.setId(((Number) map.get("id")).longValue());
+        chunk.setLibraryId(((Number) map.get("library_id")).longValue());
+        chunk.setMediaId(((Number) map.get("media_id")).longValue());
+        chunk.setContent((String) map.get("content"));
+        chunk.setChunkIndex(((Number) map.get("chunk_index")).intValue());
+        // metadata 和 embedding 需要特殊处理，这里简化处理
+        @SuppressWarnings("unchecked")
+        Map<String, Object> metadata = (Map<String, Object>) map.get("metadata");
+        chunk.setMetadata(metadata);
+        return chunk;
     }
 
     /**
@@ -134,6 +175,7 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
                                 .orElse(null);
                         if (chunk != null) {
                             ChunkResponse response = toChunkResponse(chunk, null);
+                            response.setBm25Score(entry.getValue().floatValue());
                             response.setScore(entry.getValue().floatValue());
                             return response;
                         }
@@ -203,6 +245,65 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     }
 
     /**
+     * 归一化 + 加权融合 BM25 和向量分数
+     */
+    private List<ChunkResponse> normalizeAndFuse(List<ChunkResponse> bm25Results,
+                                                 List<ChunkResponse> vectorResults,
+                                                 double alpha) {
+        // 找最大分数用于归一化
+        double maxBm25Score = bm25Results.stream()
+                .mapToDouble(c -> c.getBm25Score() != null ? c.getBm25Score() : 0)
+                .max().orElse(1.0);
+
+        double maxVectorScore = vectorResults.stream()
+                .mapToDouble(c -> c.getVectorScore() != null ? c.getVectorScore() : 0)
+                .max().orElse(1.0);
+
+        // 避免除以零
+        if (maxBm25Score == 0) maxBm25Score = 1.0;
+        if (maxVectorScore == 0) maxVectorScore = 1.0;
+
+        // 归一化并融合
+        Map<Long, ChunkResponse> chunkMap = new HashMap<>();
+        Map<Long, Double> fusionScores = new HashMap<>();
+
+        // 处理 BM25 结果
+        for (ChunkResponse chunk : bm25Results) {
+            chunkMap.put(chunk.getId(), chunk);
+            double normalizedBm25 = (chunk.getBm25Score() != null ? chunk.getBm25Score() : 0) / maxBm25Score;
+            double currentScore = fusionScores.getOrDefault(chunk.getId(), 0.0);
+            fusionScores.put(chunk.getId(), currentScore + alpha * normalizedBm25);
+        }
+
+        // 处理向量结果
+        for (ChunkResponse chunk : vectorResults) {
+            chunkMap.put(chunk.getId(), chunk);
+            double normalizedVector = (chunk.getVectorScore() != null ? chunk.getVectorScore() : 0) / maxVectorScore;
+            double currentScore = fusionScores.getOrDefault(chunk.getId(), 0.0);
+            fusionScores.put(chunk.getId(), currentScore + (1 - alpha) * normalizedVector);
+        }
+
+        // 返回融合后的结果
+        return fusionScores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .map(entry -> {
+                    ChunkResponse chunk = chunkMap.get(entry.getKey());
+                    chunk.setScore((float) (entry.getValue() * 100)); // 缩放分数便于阅读
+                    return chunk;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 阈值过滤：保留融合分 >= threshold 的 chunks
+     */
+    private List<ChunkResponse> thresholdFilter(List<ChunkResponse> chunks, double threshold) {
+        return chunks.stream()
+                .filter(c -> c.getScore() != null && c.getScore() >= threshold * 100) // 分数已缩放
+                .collect(Collectors.toList());
+    }
+
+    /**
      * QA 向量相似度检索
      */
     private List<ChunkResponse> qaVectorSearch(Long libraryId, String query, int topK) {
@@ -251,15 +352,37 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
     @Override
     public List<ChunkResponse> rerank(Long libraryId, String query, List<ChunkResponse> chunks, int topK) {
-        log.debug("ReRank重排序: libraryId={}, chunks={}", libraryId, chunks.size());
+        // 如果禁用rerank或为空，直接返回
+        if (!astraProperties.getRerank().isEnabled()) {
+            log.debug("ReRank已禁用，返回原始顺序");
+            return chunks.subList(0, Math.min(chunks.size(), topK));
+        }
 
-        // TODO: 调用 DashScope bge-reranker-v2-m3 进行重排序
-        // 目前暂时直接返回原始顺序
-
-        if (chunks.size() <= topK) {
+        if (chunks == null || chunks.isEmpty()) {
             return chunks;
         }
-        return chunks.subList(0, topK);
+
+        log.debug("ReRank重排序: libraryId={}, query={}, chunks={}, topK={}",
+                libraryId, query, chunks.size(), topK);
+
+        try {
+            // 基于融合分数排序的Fallback实现
+            // 注: DashScope bge-reranker-v2-m3 API 目前在 spring-ai-alibaba SDK 中尚无直接支持
+            // TODO: 待SDK支持后可替换为真正的Rerank API调用
+            List<ChunkResponse> sortedChunks = chunks.stream()
+                    .sorted(Comparator.comparing(
+                            c -> c.getScore() != null ? c.getScore() : 0f,
+                            Comparator.reverseOrder()))
+                    .limit(topK)
+                    .collect(Collectors.toList());
+
+            log.debug("ReRank完成，返回{}个结果", sortedChunks.size());
+            return sortedChunks;
+
+        } catch (Exception e) {
+            log.error("ReRank重排序失败，退回原始顺序: libraryId={}", libraryId, e);
+            return chunks.subList(0, Math.min(chunks.size(), topK));
+        }
     }
 
     @Override
