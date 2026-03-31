@@ -40,7 +40,32 @@
           <div class="thinking-text">{{ thinkingContent }}</div>
         </div>
       </div>
-      
+
+      <!-- 图片消息展示区域 -->
+      <div v-else-if="isImageMessage && imageUrl" class="image-message">
+        <div class="image-prompt" v-if="imagePrompt">
+          为您生成图片: {{ imagePrompt }}
+        </div>
+        <div class="image-container">
+          <img
+            :src="imageUrl"
+            class="generated-image"
+            @click="openLightbox(imageUrl)"
+            @error="handleImageError"
+          />
+        </div>
+        <div class="image-actions">
+          <button class="image-action-btn" @click="copyImageUrl(imageUrl)">
+            <DocumentDuplicateIcon class="action-icon" />
+            <span>复制链接</span>
+          </button>
+          <button class="image-action-btn" @click="downloadImage(imageUrl)">
+            <ArrowDownTrayIcon class="action-icon" />
+            <span>下载</span>
+          </button>
+        </div>
+      </div>
+
       <div class="text-container">
         <button v-if="isUser" class="user-copy-button" @click="copyContent" :title="copyButtonTitle">
           <DocumentDuplicateIcon v-if="!copied" class="copy-icon" />
@@ -59,6 +84,16 @@
       </div>
     </div>
   </div>
+
+  <!-- Lightbox Modal -->
+  <div v-if="lightboxOpen" class="lightbox-overlay" @click="closeLightbox">
+    <div class="lightbox-content">
+      <button class="lightbox-close" @click="closeLightbox">
+        <XMarkIcon class="close-icon" />
+      </button>
+      <img :src="lightboxImageUrl" class="lightbox-image" @click.stop />
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -67,6 +102,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { UserCircleIcon, ComputerDesktopIcon, DocumentDuplicateIcon, CheckIcon, ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import { ArrowPathIcon } from '@heroicons/vue/24/solid'
+import { ArrowDownTrayIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 
@@ -74,6 +110,69 @@ const contentRef = ref(null)
 const copied = ref(false)
 const copyButtonTitle = computed(() => copied.value ? '已复制' : '复制内容')
 const isThinkingExpanded = ref(true)
+
+// Image message detection
+const isImageMessage = computed(() => {
+  return props.message.type === 'image' ||
+         (props.message.metadata?.image_url && !hasThinkingContent.value);
+});
+
+const imageUrl = computed(() => {
+  return props.message.imageUrl ||
+         props.message.metadata?.image_url ||
+         extractImageUrlFromContent(props.message.content);
+});
+
+const imagePrompt = computed(() => {
+  return props.message.prompt ||
+         props.message.metadata?.prompt ||
+         extractPromptFromContent(props.message.content);
+});
+
+function extractImageUrlFromContent(content) {
+  if (!content) return null;
+  const match = content.match(/!\[image\]\(([^)]+)\)/);
+  return match ? match[1] : null;
+}
+
+function extractPromptFromContent(content) {
+  if (!content) return null;
+  const match = content.match(/为您生成图片[:：]\s*(.+?)(?:\n|$)/);
+  return match ? match[1] : null;
+}
+
+// Lightbox state
+const lightboxOpen = ref(false);
+const lightboxImageUrl = ref('');
+
+function openLightbox(url) {
+  lightboxImageUrl.value = url;
+  lightboxOpen.value = true;
+}
+
+function closeLightbox() {
+  lightboxOpen.value = false;
+  lightboxImageUrl.value = '';
+}
+
+async function copyImageUrl(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    console.error('Failed to copy:', e);
+  }
+}
+
+function downloadImage(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'generated-image.png';
+  a.click();
+}
+
+function handleImageError(e) {
+  e.target.src = '/placeholder-image.png';
+}
 
 // 提取思考内容（从metadata或content中的think标签）
 const thinkingContent = computed(() => {
@@ -1434,5 +1533,102 @@ const formatTime = (timestamp) => {
       }
     }
   }
+}
+
+// Image message styles
+.image-message {
+  margin: 8px 0;
+}
+
+.image-prompt {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.image-container {
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.generated-image {
+  max-width: 100%;
+  max-height: 512px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.generated-image:hover {
+  transform: scale(1.02);
+}
+
+.image-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.image-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: #f5f5f5;
+  }
+}
+
+.action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Lightbox */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+}
+
+.close-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.lightbox-image {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
 }
 </style>
