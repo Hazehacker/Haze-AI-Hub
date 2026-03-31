@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import top.hazenix.hazeaihub.entity.KbChunk;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 知识库分片 Mapper
@@ -57,11 +58,11 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
      * @param libraryId 知识库ID
      * @param queryEmbedding 查询向量
      * @param topK 召回数量
-     * @return 匹配的KbChunk列表
+     * @return 包含KbChunk和similarity的Map列表
      */
-    List<KbChunk> vectorSearch(@Param("libraryId") Long libraryId,
-                               @Param("queryEmbedding") float[] queryEmbedding,
-                               @Param("topK") int topK);
+    List<Map<String, Object>> vectorSearch(@Param("libraryId") Long libraryId,
+                                           @Param("queryEmbedding") float[] queryEmbedding,
+                                           @Param("topK") int topK);
 
     /**
      * 批量插入KbChunk

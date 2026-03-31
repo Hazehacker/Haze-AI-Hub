@@ -3,8 +3,8 @@
 <mapper namespace="top.hazenix.hazeaihub.mapper.KbChunkMapper">
 
     <!-- 向量相似度检索 -->
-    <select id="vectorSearch" resultType="top.hazenix.hazeaihub.entity.KbChunk">
-        SELECT *,
+    <select id="vectorSearch" resultType="java.util.HashMap">
+        SELECT id, library_id, media_id, content, embedding, chunk_index, metadata, created_at,
                1 - (embedding &lt;=&gt; #{queryEmbedding}::vector) AS similarity
         FROM kb_chunk
         WHERE library_id = #{libraryId}
