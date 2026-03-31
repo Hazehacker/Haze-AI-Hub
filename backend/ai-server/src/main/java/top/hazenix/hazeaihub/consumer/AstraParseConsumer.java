@@ -19,6 +19,8 @@ import top.hazenix.hazeaihub.parser.FileParser;
 import top.hazenix.hazeaihub.parser.FileParserFactory;
 import top.hazenix.hazeaihub.service.SseEmitterService;
 import top.hazenix.hazeaihub.producer.RedissonStreamProducer;
+import top.hazenix.hazeaihub.producer.QaPairStreamProducer;
+import top.hazenix.hazeaihub.bo.QaPairMessage;
 import top.hazenix.hazeaihub.vo.ChunkResponse;
 
 import java.time.Duration;
@@ -43,6 +45,7 @@ public class AstraParseConsumer {
     private final FileParserFactory parserFactory;
     private final SseEmitterService sseEmitterService;
     private final RedissonStreamProducer streamProducer;
+    private final QaPairStreamProducer qaPairStreamProducer;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private ExecutorService executor = new ThreadPoolExecutor(
@@ -174,6 +177,9 @@ public class AstraParseConsumer {
             stream.ack(streamConfig.getConsumerGroup(), messageId);
             log.info("解析任务完成: mediaId={}", message.getMediaId());
 
+            // 发送 QA 生成任务到队列
+            sendQaTask(message);
+
         } catch (Exception e) {
             log.error("解析任务失败: mediaId={}", message.getMediaId(), e);
             handleFailure(message, messageId, e);
@@ -246,6 +252,24 @@ public class AstraParseConsumer {
                 media.setParsedChunks(totalChunks);
             }
             mediaMapper.updateById(media);
+        }
+    }
+
+    /**
+     * 发送 QA 生成任务
+     */
+    private void sendQaTask(ParseMessage message) {
+        try {
+            QaPairMessage qaMessage = QaPairMessage.builder()
+                    .mediaId(message.getMediaId())
+                    .libraryId(message.getLibraryId())
+                    .retryCount(0)
+                    .createdAt(System.currentTimeMillis())
+                    .build();
+            qaPairStreamProducer.sendQaTask(qaMessage);
+            log.info("QA生成任务已发送: mediaId={}", message.getMediaId());
+        } catch (Exception e) {
+            log.error("发送QA生成任务失败: mediaId={}", message.getMediaId(), e);
         }
     }
 }

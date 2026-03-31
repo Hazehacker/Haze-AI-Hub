@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="top.hazenix.hazeaihub.mapper.QaEmbeddingMapper">
+
+    <!-- 向量相似度检索 -->
+    <select id="vectorSearch" resultType="top.hazenix.hazeaihub.entity.KbQaEmbedding">
+        SELECT qe.*,
+               1 - (qe.embedding &lt;=&gt; #{queryEmbedding}::vector) AS similarity
+        FROM kb_qa_embedding qe
+        INNER JOIN kb_qa_pair qp ON qe.qa_pair_id = qp.id
+        WHERE qp.library_id = #{libraryId}
+        ORDER BY qe.embedding &lt;=&gt; #{queryEmbedding}::vector
+        LIMIT #{topK}
+    </select>
+
+    <!-- 批量插入 -->
+    <insert id="batchInsert">
+        INSERT INTO kb_qa_embedding (qa_pair_id, embedding)
+        VALUES
+        <foreach collection="embeddings" item="emb" separator=",">
+            (#{emb.qaPairId}, #{emb.embedding}::vector)
+        </foreach>
+    </insert>
+
+</mapper>

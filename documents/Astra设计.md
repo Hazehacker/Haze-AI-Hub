@@ -992,6 +992,156 @@ Chunk3: [段落B句子2 + 段落C句子1-2-3]
 
 
 
+## 解决-QA 对生成（增强检索）
+
+> **目标**：通过生成问答对增强 RAG 检索质量。QA 对作为独立检索单元，用户提问时同时检索原文 Chunk 和 QA 对，RRF 合并后送入 LLM。
+
+### 一、整体架构
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│  文件上传   │ ──▶ │  文档解析   │ ──▶ │  Chunk生成  │ ──▶ │ 向量Embedding│
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+                                                                        │
+                    ┌──────────────────────────────────────────────────┘
+                    ▼
+┌─────────────┐     ┌─────────────┐
+│ QA对生成    │ ──▶ │ QA向量存储  │ ──▶ (后续检索时混合检索 Chunk + QA)
+└─────────────┘     └─────────────┘
+```
+
+**流程说明**：
+1. 文件上传后经现有 Pipeline（解析 → Chunk → 向量存储）
+2. Chunk 向量存储完成后，触发 QA 生成阶段（新增）
+3. QA 对生成后，存入 `kb_qa_pair` 表，并生成 QA 向量存入 `kb_qa_embedding` 表
+4. 检索时：用户问题同时检索 Chunk 向量和 QA 向量，RRF 合并结果
+
+### 二、数据模型
+
+#### 新建表 1：`kb_qa_pair`（QA 对存储）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | BIGSERIAL | 主键 |
+| `chunk_id` | BIGINT | 关联的 Chunk ID |
+| `question` | TEXT | 生成的问题 |
+| `answer` | TEXT | 生成的答案（来自原文） |
+| `library_id` | BIGINT | 所属知识库 |
+| `media_id` | BIGINT | 所属媒体文件 |
+| `created_at` | TIMESTAMP | 创建时间 |
+
+#### 新建表 2：`kb_qa_embedding`（QA 向量存储）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | BIGSERIAL | 主键 |
+| `qa_pair_id` | BIGINT | 关联的 QA 对 ID |
+| `embedding` | VECTOR(1024) | QA 问题的向量 |
+| `created_at` | TIMESTAMP | 创建时间 |
+
+
+### 三、核心组件
+
+| 组件 | 职责 | 文件位置 |
+|------|------|----------|
+| `QaPairGenerationService` | 核心服务：调用 LLM 生成 QA 对 | `service/impl/QaPairGenerationServiceImpl.java` |
+| `QaPairMapper` | QA 对数据访问 | `mapper/QaPairMapper.java` |
+| `QaEmbeddingMapper` | QA 向量数据访问 | `mapper/QaEmbeddingMapper.java` |
+| `QaPairGenerationConsumer` | 异步消费 QA 生成消息 | `consumer/QaPairGenerationConsumer.java` |
+
+**集成点**：
+
+| 现有组件 | 改动 |
+|----------|------|
+| `AstraParseConsumer` | Chunk 存储完成后，发送消息到 `qa_generation_queue` |
+| `AstraSearchServiceImpl` | 新增 `searchQaPairs()` 方法，与 Chunk 检索结果 RRF 合并 |
+| `KbMedia` 实体 | 新增 `qaStatus` 字段 |
+
+### 四、QA 生成 Prompt
+
+```
+你是一个问答对生成专家。根据以下文档内容，生成 3-5 个问答对。
+每个问答对应该：
+1. 问题简洁、具体，模拟用户真实提问
+2. 答案基于原文，准确且完整
+
+文档内容：
+{{chunk_content}}
+
+请以 JSON 格式输出：
+[
+  {"question": "问题1", "answer": "答案1"},
+  {"question": "问题2", "answer": "答案2"}
+]
+```
+
+### 五、异步流程与异常处理
+
+```
+AstraParseConsumer.chunkStored()
+        │
+        ▼
+发送消息到 Redis Stream (qa_generation_queue)
+        │
+        ▼
+QaPairGenerationConsumer 消费消息
+        │
+        ├──▶ 调用 LLM 生成 QA 对
+        │
+        ├──▶ 存储到 kb_qa_pair
+        │
+        ├──▶ 生成 QA 向量
+        │
+        └──▶ 存储到 kb_qa_embedding
+```
+
+**异常处理策略**：
+
+| 场景 | 处理方式 |
+|------|----------|
+| LLM 调用失败 | 重试 3 次，间隔指数退避 |
+| 向量生成失败 | 单独重试 QA 向量生成，不阻塞 QA 对存储 |
+| 部分 Chunk QA 生成失败 | 记录日志，继续处理其他 Chunk |
+| 整个队列消费失败 | 消息不 ACK，保留在队列待下次重试 |
+
+### 六、RAG 检索增强
+
+```
+用户提问
+    │
+    ▼
+┌─────────────────┐     ┌─────────────────┐
+│  检索 Chunk 向量 │     │  检索 QA 向量   │
+│  (kb_chunk)     │     │ (kb_qa_embedding)│
+└────────┬────────┘     └────────┬────────┘
+         │                         │
+         ▼                         ▼
+    top-K=5 结果              top-K=5 结果
+         │                         │
+         └──────────┬────────────────┘
+                    ▼
+            RRF 合并 (k=60)
+                    │
+                    ▼
+           返回合并后的上下文
+                    │
+                    ▼
+              LLM 生成回答
+```
+
+**检索参数**：
+- Chunk 检索：`top-K = 5`
+- QA 检索：`top-K = 5`
+- RRF 合并后取 `top-10` 送入 LLM
+
+**结果组装**：
+- 如果命中 QA 对：返回 `{source: "qa", question, answer, chunk_content}`
+- 如果命中原文 Chunk：返回 `{source: "chunk", content}`
+
+---
+
+
+
 
 
 
