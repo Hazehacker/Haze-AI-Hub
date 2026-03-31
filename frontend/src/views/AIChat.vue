@@ -327,6 +327,11 @@ const showGroupDialog = ref(false)
 const editingGroup = ref(null)
 const showWelcome = ref(true) // 显示欢迎界面
 
+// Image message state
+const currentImagePrompt = ref('')
+const currentImageUrl = ref('')
+const isAwaitingImage = ref(false)
+
 // 模型选择相关
 const showModelDropdown = ref(false)
 const availableModels = ref([])
@@ -594,17 +599,74 @@ const sendMessage = async () => {
         const { value, done } = await reader.read()
         if (done) break
         
-        // 累积新内容（已经是纯文本，包含 <think> 标签和回答文本）
+        // 解码内容
         const newContent = decoder.decode(value)
-        accumulatedContent += newContent
-        
+
+        // 处理多行数据（每个事件以 \n\n 结尾）
+        const lines = newContent.split('\n')
+
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+          if (!trimmedLine || trimmedLine.startsWith('data:')) {
+            // 处理事件行
+            if (trimmedLine.startsWith('data:')) {
+              const eventData = trimmedLine.substring(5).trim()
+
+              // Handle AI_PROMPT event (prompt echo for image generation)
+              if (eventData.startsWith('AI_PROMPT:')) {
+                currentImagePrompt.value = eventData.substring('AI_PROMPT:'.length)
+                currentImageUrl.value = ''
+                isAwaitingImage.value = true
+                continue
+              }
+
+              // Handle IMAGE_URL event
+              if (eventData.startsWith('IMAGE_URL:')) {
+                currentImageUrl.value = eventData.substring('IMAGE_URL:'.length)
+                isAwaitingImage.value = false
+
+                await nextTick(() => {
+                  const lastIndex = currentMessages.value.length - 1
+                  if (lastIndex >= 0) {
+                    currentMessages.value[lastIndex] = {
+                      ...currentMessages.value[lastIndex],
+                      type: 'image',
+                      prompt: currentImagePrompt.value,
+                      imageUrl: currentImageUrl.value,
+                      content: currentImagePrompt.value
+                    }
+                  }
+                })
+                continue
+              }
+
+              // Handle DONE event
+              if (eventData === 'DONE') {
+                continue
+              }
+
+              // Handle ERROR event
+              if (eventData.startsWith('ERROR:')) {
+                accumulatedContent += '\n' + eventData.substring(6)
+                continue
+              }
+            }
+
+            // Accumulate regular text content
+            if (!trimmedLine.startsWith('SESSION_CREATED:') &&
+                !trimmedLine.startsWith('data:')) {
+              accumulatedContent += trimmedLine + '\n'
+            }
+          }
+        }
+
         await nextTick(() => {
-          // 更新消息，使用累积的内容
-          // 创建新对象确保 Vue 响应式系统检测到变化
           const lastIndex = currentMessages.value.length - 1
-          currentMessages.value[lastIndex] = {
-            ...currentMessages.value[lastIndex],
-            content: accumulatedContent
+          if (lastIndex >= 0) {
+            currentMessages.value[lastIndex] = {
+              ...currentMessages.value[lastIndex],
+              content: accumulatedContent
+            }
           }
         })
         await scrollToBottom()
