@@ -41,4 +41,12 @@ public class ChunkResponse {
 
     @Schema(description = "来源信息(检索时填充，格式: 文件名-页码)")
     private String source;
+
+    @Builder.Default
+    @Schema(description = "BM25分数")
+    private Float bm25Score = 0f;
+
+    @Builder.Default
+    @Schema(description = "向量相似度分数")
+    private Float vectorScore = 0f;
 }
