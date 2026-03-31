@@ -132,3 +132,4 @@ nginx.conf
 .claude
 CLAUDE.md
 /resume
+.worktrees/
