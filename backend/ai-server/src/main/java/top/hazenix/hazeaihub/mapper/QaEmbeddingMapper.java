@@ -43,11 +43,13 @@ public interface QaEmbeddingMapper extends BaseMapper<KbQaEmbedding> {
      * @param libraryId 知识库ID
      * @param queryEmbedding 查询向量
      * @param topK 召回数量
+     * @param efSearch HNSW ef_search 参数，配合 iterative_scan=relaxed_order 使用
      * @return 匹配的KbQaEmbedding列表
      */
     List<KbQaEmbedding> vectorSearch(@Param("libraryId") Long libraryId,
                                      @Param("queryEmbedding") float[] queryEmbedding,
-                                     @Param("topK") int topK);
+                                     @Param("topK") int topK,
+                                     @Param("efSearch") int efSearch);
 
     /**
      * 批量插入QA向量

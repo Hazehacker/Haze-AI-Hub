@@ -133,6 +133,9 @@ astra:
     top-k:
       bm25: 50
       vector: 50
+    # pgvector HNSW iterative scan 候选集大小，配合 relaxed_order 使用
+    # 值越大召回越准，但查询耗时增加；建议范围 100~400，按实际数据量调整
+    ef-search: 200
   rerank:
     enabled: true
     model: bge-reranker-v2-m3

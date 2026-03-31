@@ -2,11 +2,19 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
 <mapper namespace="top.hazenix.hazeaihub.mapper.KbChunkMapper">
 
-    <!-- 向量相似度检索 -->
+    <!-- 向量相似度检索
+         使用 pgvector 0.8+ iterative scan 解决 library_id 预过滤导致 HNSW 索引退化问题：
+         - hnsw.iterative_scan=relaxed_order：结果不足 topK 时自动扩大搜索半径继续查找
+         - hnsw.ef_search：控制每次扫描的候选集大小，值越大召回越准但越慢
+         set_config() 通过 CTE 嵌入，保证单条 SQL 执行，事务结束后自动恢复默认值 -->
     <select id="vectorSearch" resultType="java.util.HashMap">
+        WITH hnsw_config AS (
+            SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true),
+                   set_config('hnsw.ef_search', #{efSearch}::text, true)
+        )
         SELECT id, library_id, media_id, content, embedding, chunk_index, metadata, created_at,
                1 - (embedding &lt;=&gt; #{queryEmbedding}::vector) AS similarity
-        FROM kb_chunk
+        FROM kb_chunk, hnsw_config
         WHERE library_id = #{libraryId}
         ORDER BY embedding &lt;=&gt; #{queryEmbedding}::vector
         LIMIT #{topK}

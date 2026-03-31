@@ -98,8 +98,9 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             // 1. 生成查询向量
             float[] queryEmbedding = embeddingModel.embed(query);
 
-            // 2. 执行向量检索
-            List<Map<String, Object>> resultMaps = chunkMapper.vectorSearch(libraryId, queryEmbedding, topK);
+            // 2. 从配置读取 efSearch，执行向量检索（iterative_scan 通过 SQL CTE 注入）
+            int efSearch = astraProperties.getSearch().getEfSearch();
+            List<Map<String, Object>> resultMaps = chunkMapper.vectorSearch(libraryId, queryEmbedding, topK, efSearch);
 
             // 3. 转换为 ChunkResponse 并设置向量分数
             return resultMaps.stream()
@@ -311,8 +312,9 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             // 1. 生成查询向量
             float[] queryEmbedding = embeddingModel.embed(query);
 
-            // 2. 执行 QA 向量检索
-            List<KbQaEmbedding> qaEmbeddings = qaEmbeddingMapper.vectorSearch(libraryId, queryEmbedding, topK);
+            // 2. 执行 QA 向量检索（同步使用 iterative_scan 配置）
+            int efSearch = astraProperties.getSearch().getEfSearch();
+            List<KbQaEmbedding> qaEmbeddings = qaEmbeddingMapper.vectorSearch(libraryId, queryEmbedding, topK, efSearch);
 
             // 3. 转换为 ChunkResponse
             return qaEmbeddings.stream()

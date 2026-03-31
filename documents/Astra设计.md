@@ -290,6 +290,42 @@ public class VectorStoreConfig {
 
 
 
+# 向量索引算法
+
+使用**HNSW（图索引）**
+
+> 在**百万级**数据规模下，HNSW 在**检索速度、召回率和内存占用**之间取得了最佳平衡。
+>
+> ![HNSW 索引架构](assets/rag-hnsw-architecture.png)
+
+
+
+```sql
+-- 4. 分片向量表 kb_chunk
+CREATE TABLE kb_chunk (
+    id BIGSERIAL PRIMARY KEY,
+    library_id BIGINT NOT NULL,
+    media_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    embedding VECTOR(1024),
+    chunk_index INT4 NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP(0) NOT NULL DEFAULT NOW()
+    -- 逻辑外键: library_id 关联 kb_library(id)，media_id 关联 kb_media(id)，业务层保证
+);
+
+-- 分片向量索引 (HNSW 索引用于加速相似度查询)
+CREATE INDEX idx_chunk_library_id ON kb_chunk(library_id);
+CREATE INDEX idx_chunk_media_id ON kb_chunk(media_id);
+CREATE INDEX idx_chunk_embedding ON kb_chunk USING hnsw (embedding vector_cosine_ops);
+```
+
+
+
+
+
+
+
 # Embedding 模型选择
 
 
@@ -317,19 +353,165 @@ public class VectorStoreConfig {
 
 ## 多轮过滤
 
+> 条件过滤+向量相似度 联合查询
 
 
-### 一、预过滤（Pre-Filtering）
+
+### 一、预过滤
 
 > 使用硬规则过滤
 
-* **动作**：根据用户身份、时间范围、文档类型进行 SQL/NoSQL 级别的过滤。
+* **动作**：根据用户身份、时间范围、文档类型进行的过滤。
 * **例子**：`WHERE department = 'HR' AND status = 'published' AND date > '2023-01-01'`。
 * **目的**：确保绝对的安全性和时效性。这一步做完，候选集可能从 100 万篇变成了 5000 篇。
+
+项目中：在执行 HNSW 向量检索之前，先按知识库 ID 限定搜索范围
+
+```sql
+<select id="vectorSearch" resultType="java.util.HashMap">
+    SELECT id, library_id, media_id, content, embedding, chunk_index, metadata, created_at,
+           1 - (embedding <=> #{queryEmbedding}::vector) AS similarity
+    FROM kb_chunk
+    WHERE library_id = #{libraryId}          -- ← 预过滤条件
+    ORDER BY embedding <=> #{queryEmbedding}::vector
+    LIMIT #{topK}
+</select>
+```
+
+
+
+#### 问题：
+
+**如果某个知识库只占全表数据的很小比例，大部分图节点就成为了禁区，存在很大的 HNSW 退化为暴力扫描的风险**
+
+
+
+#### 解决方案
+
+
+
+**方案一：调大 ef_search（最简单，治标）**
+原理：让 HNSW 探索更大的候选集，提高在过滤后仍能找到足够结果的概率。
+
+```sql
+SET hnsw.ef_search = 200;  -- 默认是 40
+SELECT ... FROM kb_chunk WHERE library_id = ? ORDER BY embedding <=> ? LIMIT 50;
+```
+
+优点：一行配置，零改造
+缺点：只是缩小了退化概率，并非根治；候选集变大后搜索时间线性增长
+
+**方案二：使用iterative scan（pgvector 0.8+ 新特性）**
+pgvector 0.8 引入了迭代式扫描，专门解决过滤后结果不足的问题：
+
+```sql
+SET hnsw.iterative_scan = relaxed_order;  -- 或 strict_order
+SELECT ... FROM kb_chunk WHERE library_id = ? ORDER BY embedding <=> ? LIMIT 50;
+```
+
+relaxed_order 模式下，当 HNSW 在当前候选集中过滤后不够 LIMIT 数量时，会自动扩大搜索半径继续找，直到凑够为止。这直接消灭了"返回结果远少于 Top-K"的问题，且仍然走索引。
+优点：根治结果数不足问题，无需改表结构
+缺点：需要 pgvector ≥ 0.8
+
+**方案三：重新设计索引——按 library_id 分区**
+pgvector 支持带条件的 HNSW 部分索引：
+
+```sql
+-- 为每个知识库动态建立专属 HNSW 索引（在知识库创建时触发）
+CREATE INDEX idx_chunk_embedding_lib_{id} 
+    ON kb_chunk USING hnsw (embedding vector_cosine_ops)
+    WHERE library_id = {id};
+```
+
+每个知识库有自己独立的"高速公路"，查询时 WHERE library_id = 1 会精准命中该部分索引，HNSW 图内 100% 都是合法节点，没有任何断路问题。
+优点：性能最优，完全消灭预过滤干扰
+缺点：需要在知识库创建/删除时动态维护索引，内存空间占用极大
+
+> #### 方案三问题
+>
+> **内存空间占用过大**
+>
+> 每个知识库一个 HNSW 索引，而HNSW 索引本身的存储开销约是原始向量数据的 1.5~2 倍。
+>
+> ```
+> 假设：100 个知识库，每库平均 1000 个 chunk，向量维度 1024（float32）
+> 原始向量数据：100,000 × 1024 × 4B = 409 MB
+> HNSW 索引总开销：409 MB × 2 × 100（每个库独立索引）≈ 数倍于全局单索引
+> ```
+>
+> N 个知识库就有 N 张独立的 HNSW 图，每张图都有自己的层级连接，**内存占用随知识库数量线性增长**。
+>
+> **动态的DDL风险**
+>
+> 1. **锁表**：`CREATE INDEX 在 PostgreSQL` 中默认会持有共享锁，阻塞同表的写操作（INSERT/UPDATE/DELETE）(这些操作需要先获取到排他锁)
+>
+> 2. 如果要避免锁表，使用`CREATE INDEX CONCURRENTLY`的话，会导致**事务一致性被破坏**
+>
+>    ```
+>    用户创建知识库 → 业务事务提交 → 异步/同步创建部分索引
+>                                        ↑ 如果这里失败了？
+>    ```
+>
+>    知识库记录已入库，但对应的 HNSW 部分索引没建成功，导致该知识库查询永远走全局索引（或顺序扫描），而业务层完全感知不到这个状态不一致
+>
+> 动态部分索引方案的设计假设是：
+>
+> * 知识库数量少（< 10 个）
+> * 每个知识库数据量大且稳定（> 10 万 chunk）
+> * 过滤条件固定且高频
+>
+> 项目的实际情况：
+>
+> * 知识库数量随用户增长（个人知识库，每人 N 个）
+> * 每个知识库初期数据量极小，成长缓慢
+> * 用户随时可以创建/删除知识库
+>
+> 所以方案三在项目中弊大于利
+
+
+
+**项目中的做法：**
+
+适当调大 ef_search，并启用 iterative scan
+
+```sql
+<!-- 向量相似度检索
+     使用 pgvector 0.8+ iterative scan 解决 library_id 预过滤导致 HNSW 索引退化问题：
+     - hnsw.iterative_scan=relaxed_order：结果不足 topK 时自动扩大搜索半径继续查找
+     - hnsw.ef_search：控制每次扫描的候选集大小，值越大召回越准但越慢
+     set_config() 通过 CTE 嵌入，保证单条 SQL 执行，事务结束后自动恢复默认值 -->
+<select id="vectorSearch" resultType="java.util.HashMap">
+    WITH hnsw_config AS (
+        SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true),
+               set_config('hnsw.ef_search', #{efSearch}::text, true)
+    )
+    SELECT id, library_id, media_id, content, embedding, chunk_index, metadata, created_at,
+           1 - (embedding &lt;=&gt; #{queryEmbedding}::vector) AS similarity
+    FROM kb_chunk, hnsw_config
+    WHERE library_id = #{libraryId}
+    ORDER BY embedding &lt;=&gt; #{queryEmbedding}::vector
+    LIMIT #{topK}
+</select>
+```
+
+```sql
+-- 一次性配置，解决所有知识库的过滤问题
+SET hnsw.iterative_scan = relaxed_order;
+```
+
+
+
+
+
+
+
+
 
 
 
 ### 二、检索策略-混合检索
+
+> #### BM25 + 向量 + RRF融合
 
 
 
