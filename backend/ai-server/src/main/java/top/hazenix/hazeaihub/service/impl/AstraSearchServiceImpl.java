@@ -352,15 +352,37 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
     @Override
     public List<ChunkResponse> rerank(Long libraryId, String query, List<ChunkResponse> chunks, int topK) {
-        log.debug("ReRank重排序: libraryId={}, chunks={}", libraryId, chunks.size());
+        // 如果禁用rerank或为空，直接返回
+        if (!astraProperties.getRerank().isEnabled()) {
+            log.debug("ReRank已禁用，返回原始顺序");
+            return chunks.subList(0, Math.min(chunks.size(), topK));
+        }
 
-        // TODO: 调用 DashScope bge-reranker-v2-m3 进行重排序
-        // 目前暂时直接返回原始顺序
-
-        if (chunks.size() <= topK) {
+        if (chunks == null || chunks.isEmpty()) {
             return chunks;
         }
-        return chunks.subList(0, topK);
+
+        log.debug("ReRank重排序: libraryId={}, query={}, chunks={}, topK={}",
+                libraryId, query, chunks.size(), topK);
+
+        try {
+            // 基于融合分数排序的Fallback实现
+            // 注: DashScope bge-reranker-v2-m3 API 目前在 spring-ai-alibaba SDK 中尚无直接支持
+            // TODO: 待SDK支持后可替换为真正的Rerank API调用
+            List<ChunkResponse> sortedChunks = chunks.stream()
+                    .sorted(Comparator.comparing(
+                            c -> c.getScore() != null ? c.getScore() : 0f,
+                            Comparator.reverseOrder()))
+                    .limit(topK)
+                    .collect(Collectors.toList());
+
+            log.debug("ReRank完成，返回{}个结果", sortedChunks.size());
+            return sortedChunks;
+
+        } catch (Exception e) {
+            log.error("ReRank重排序失败，退回原始顺序: libraryId={}", libraryId, e);
+            return chunks.subList(0, Math.min(chunks.size(), topK));
+        }
     }
 
     @Override
