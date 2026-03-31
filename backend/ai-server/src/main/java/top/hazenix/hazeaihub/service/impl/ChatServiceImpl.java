@@ -20,7 +20,11 @@ import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.service.IChatMessageService;
 import top.hazenix.hazeaihub.service.IChatService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
+import top.hazenix.hazeaihub.service.IIntentDetectionService;
 import top.hazenix.hazeaihub.service.ITitleGenerationService;
+import top.hazenix.hazeaihub.service.IWanxImageService;
+import top.hazenix.hazeaihub.service.result.IntentDetectionResult;
+import top.hazenix.hazeaihub.service.result.WanxImageResult;
 
 import java.util.*;
 
@@ -37,6 +41,8 @@ public class ChatServiceImpl implements IChatService {
     private final IChatMessageService chatMessageService;
     private final ITitleGenerationService titleGenerationService;
     private final ChatModel textChatModel;
+    private final IIntentDetectionService intentDetectionService;
+    private final IWanxImageService wanxImageService;
 
     /**
      * 处理普通文本聊天请求（直接使用 ChatModel 实现流式对话）
@@ -50,6 +56,13 @@ public class ChatServiceImpl implements IChatService {
         // 1. 处理会话创建
         boolean isNewSession = (sessionId == null);
         Long finalSessionId = createSessionIfNeeded(isNewSession, sessionId, groupId);
+
+        // Intent detection for image generation
+        IntentDetectionResult intentResult = intentDetectionService.analyzeIntent(prompt);
+        if ("image_generation".equals(intentResult.getIntent())) {
+            // Route to image generation
+            return generateImageResponse(groupId, finalSessionId, intentResult.getImagePrompt(), enableThinking, thinkingBudget, model);
+        }
 
         // 构建初始事件流（新会话通知）
         Flux<String> initialFlux = isNewSession
@@ -174,6 +187,43 @@ public class ChatServiceImpl implements IChatService {
         } catch (Exception e) {
             log.error("创建会话失败", e);
             throw new RuntimeException("创建会话失败: " + e.getMessage());
+        }
+    }
+
+    private Flux<String> generateImageResponse(Long groupId, Long sessionId, String imagePrompt,
+            Boolean enableThinking, Integer thinkingBudget, String model) {
+        StringBuilder fullResponseBuilder = new StringBuilder();
+
+        // Emit session created event (already handled, but needed for return type)
+        Flux<String> initialFlux = Flux.empty();
+
+        // Emit AI prompt echo
+        String promptEcho = "为您生成图片: " + imagePrompt;
+
+        try {
+            WanxImageResult imageResult = wanxImageService.generateImage(imagePrompt, sessionId);
+            String ossUrl = imageResult.getImageUrl();
+
+            // Save as AI message
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("model", "wanx_flux");
+            metadata.put("prompt", imagePrompt);
+            metadata.put("image_url", ossUrl);
+            metadata.put("original_url", imageResult.getOriginalUrl());
+
+            String content = "![image](" + ossUrl + ")";
+            chatMessageService.saveAiMessage(sessionId, content, metadata);
+            chatSessionService.updateLastActiveTime(sessionId);
+
+            return initialFlux
+                    .concatWith(Flux.just("AI_PROMPT:" + promptEcho))
+                    .concatWith(Flux.just("IMAGE_URL:" + ossUrl))
+                    .concatWith(Flux.just("DONE"));
+
+        } catch (Exception e) {
+            log.error("Image generation failed: {}", e.getMessage());
+            return initialFlux
+                    .concatWith(Flux.just("ERROR:图片生成失败，请稍后重试"));
         }
     }
 }
