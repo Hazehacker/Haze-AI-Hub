@@ -14,6 +14,10 @@ spring:
         options:
           model: text-embedding-v4 # 文本向量
 #          model: qwen2.5-vl-embedding # 多模态向量模型
+    wanx:
+      model: wanxFLUX
+      endpoint: https://dashscope.aliyuncs.com/api/v1/services/a2xlvm9xb7tx/image%20generation
+      timeout: 60000
     ai:
       vectorstore:
 
