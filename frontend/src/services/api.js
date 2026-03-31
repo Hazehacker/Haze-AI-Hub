@@ -48,6 +48,22 @@ function parseSSEEvent(eventBlock, onSessionCreated) {
     return { error: data.substring('ERROR:'.length) }
   }
 
+  // AI 提示词事件（用于图像生成等场景）
+  if (data.startsWith('AI_PROMPT:')) {
+    return { event: 'AI_PROMPT', content: data.substring('AI_PROMPT:'.length) }
+  }
+
+  // 图像 URL 事件
+  if (data.startsWith('IMAGE_URL:')) {
+    return { event: 'IMAGE_URL', content: data.substring('IMAGE_URL:'.length) }
+  }
+
+  // 完成事件
+  if (data.startsWith('DONE')) {
+    return { event: 'DONE' }
+  }
+
+
   // 默认：内容 chunk（<think>...</think> 或回答文本）
   return { content: data }
 }
@@ -175,6 +191,15 @@ export const chatAPI = {
               const parsed = parseSSEEvent(eventBlock, onSessionCreated)
               if (parsed.error) {
                 throw new Error(parsed.error)
+              }
+              if (parsed.event === 'AI_PROMPT') {
+                return { value: new TextEncoder().encode('AI_PROMPT:' + parsed.content), done: false }
+              }
+              if (parsed.event === 'IMAGE_URL') {
+                return { value: new TextEncoder().encode('IMAGE_URL:' + parsed.content), done: false }
+              }
+              if (parsed.event === 'DONE') {
+                return { value: new TextEncoder().encode('DONE'), done: false }
               }
               if (parsed.content) {
                 return { value: new TextEncoder().encode(parsed.content), done: false }
