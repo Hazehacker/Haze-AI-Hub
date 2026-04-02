@@ -40,14 +40,8 @@ public class Attachment {
     @TableField(value = "sha256")
     private String contentHash;
 
-    @Schema(description = "图片生成提示词")
-    private String prompt;
-
     @Schema(description = "来源类型: wanx_flux, upload, etc.")
     private String sourceType;
-
-    @Schema(description = "原始URL(Wanx CDN等)")
-    private String originalUrl;
 
     @Schema(description = "创建时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

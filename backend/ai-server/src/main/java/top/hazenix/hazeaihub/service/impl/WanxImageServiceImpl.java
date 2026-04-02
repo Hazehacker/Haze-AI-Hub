@@ -102,9 +102,7 @@ public class WanxImageServiceImpl implements IWanxImageService {
                     .mimeType("image/png")
                     .fileSize(0L)
                     .storagePath(ossUrl)
-                    .prompt(prompt)
                     .sourceType("wanx_flux")
-                    .originalUrl(imageUrl)
                     .build();
 
             attachmentMapper.insert(attachment);
