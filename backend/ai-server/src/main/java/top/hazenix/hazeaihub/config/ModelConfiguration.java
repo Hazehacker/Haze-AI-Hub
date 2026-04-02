@@ -26,7 +26,7 @@ public class ModelConfiguration {
         return DashScopeChatModel.builder()
                 .dashScopeApi(dashScopeApi)
                 .defaultOptions(com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions.builder()
-                        .model("qwen-plus")
+                        .model("qwen-flash")
                         .enableThinking(true)
                         .stream(true)
                         .temperature(0.8)

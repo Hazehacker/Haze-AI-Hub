@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import top.hazenix.hazeaihub.constant.PromptConstant;
 import top.hazenix.hazeaihub.service.IIntentDetectionService;
 import top.hazenix.hazeaihub.service.result.IntentDetectionResult;
 
@@ -17,21 +18,6 @@ import top.hazenix.hazeaihub.service.result.IntentDetectionResult;
 public class IntentDetectionServiceImpl implements IIntentDetectionService {
 
     private final DashScopeChatModel chatModel;
-
-    private static final String DETECTION_PROMPT = """
-        分析用户输入，判断是否需要生成图片。
-
-        图片生成意图关键词包括：画、生成(图片/图像)、创作(图片/图像)、设计(图片/图像)、帮我画、请画、生成一张(图片/图像)
-        英文关键词包括：draw, generate image, create image
-
-        如果用户明确要求生成图片，返回JSON格式：
-        {"intent": "image_generation", "image_prompt": "提取的图片描述"}
-
-        如果用户只是对话或提问，返回JSON格式：
-        {"intent": "text"}
-
-        用户输入：%s
-        """;
 
     @Override
     public IntentDetectionResult analyzeIntent(String userInput) {
@@ -58,7 +44,7 @@ public class IntentDetectionServiceImpl implements IIntentDetectionService {
                     .build();
 
             Prompt prompt = new Prompt(
-                    String.format(DETECTION_PROMPT, userInput),
+                    String.format(PromptConstant.INTENT_DETECTION_PROMPT, userInput),
                     options
             );
 

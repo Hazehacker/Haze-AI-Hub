@@ -57,10 +57,10 @@ public class ChatServiceImpl implements IChatService {
         boolean isNewSession = (sessionId == null);
         Long finalSessionId = createSessionIfNeeded(isNewSession, sessionId, groupId);
 
-        // Intent detection for image generation
+        // 检测是否有“生图”的语意
         IntentDetectionResult intentResult = intentDetectionService.analyzeIntent(prompt);
         if ("image_generation".equals(intentResult.getIntent())) {
-            // Route to image generation
+            // 路由跳转到图片生成
             return generateImageResponse(groupId, finalSessionId, intentResult.getImagePrompt(), enableThinking, thinkingBudget, model);
         }
 

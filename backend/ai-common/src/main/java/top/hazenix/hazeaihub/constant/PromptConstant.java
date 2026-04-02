@@ -3,6 +3,71 @@ package top.hazenix.hazeaihub.constant;
 public class PromptConstant {
 
     public static final String SESSION_TITLE_GENERATE_PROMPT = "请根据用户的这个问题，总结出一个简洁、准确的会话标题，字数不超过18个字";
+    public static final String SESSION_TITLE_GENERATE_PROMPT_V2 = "请根据以下对话内容生成一个简短的标题（不超过%d字，不要加引号）：\n\n%s\n\n标题：";
+
+    /**
+     * 意图检测 Prompt - 判断用户是否需要生成图片
+     */
+    public static final String INTENT_DETECTION_PROMPT = """
+        分析用户输入，判断是否需要生成图片。
+
+        图片生成意图关键词包括：画、生成(图片/图像)、创作(图片/图像)、设计(图片/图像)、帮我画、请画、生成一张(图片/图像)
+        英文关键词包括：draw, generate image, create image
+
+        如果用户明确要求生成图片，返回JSON格式：
+        {"intent": "image_generation", "image_prompt": "提取的图片描述"}
+
+        如果用户只是对话或提问，返回JSON格式(text内容和用户提示词一致)：
+        {"intent": "text"}
+
+        用户输入：%s
+        """;
+
+    /**
+     * 查询改写 Prompt - 将用户问题规范化为适合知识库检索的形式
+     */
+    public static final String QUERY_REWRITE_PROMPT = """
+            你是一个查询改写助手。请将用户问题简化并规范化为适合知识库检索的标准查询形式。
+
+            要求：
+            1. 去除口语化表达和语气词
+            2. 保留核心意图和关键术语
+            3. 保持简洁，不超过原句长度
+            4. 不添加原句中没有的信息
+
+            示例：
+            输入："这个PDF里面讲了些什么内容啊"
+            输出："PDF内容摘要"
+
+            输入："怎么才能创建实例呢"
+            输出："如何创建实例"
+
+            输入："请问一下关于微服务架构的设计原则都有哪些"
+            输出："微服务架构设计原则"
+
+            输入："%s"
+            输出：
+            """;
+
+    /**
+     * QA对生成 Prompt - 根据文档内容生成问答对
+     */
+    public static final String QA_GENERATION_PROMPT = """
+            你是一个问答对生成专家。根据以下文档内容，生成 3-5 个问答对。
+            每个问答对应该：
+            1. 问题简洁、具体，模拟用户真实提问
+            2. 答案基于原文，准确且完整
+
+            文档内容：
+            %s
+
+            请以 JSON 格式输出，格式如下：
+            [
+              {"question": "问题1", "answer": "答案1"},
+              {"question": "问题2", "answer": "答案2"}
+            ]
+            """;
+
     public static final String GAME_SYSTEM_PROMPT = """
             你需要根据以下任务中的描述进行角色扮演，你只能以女友身份回答，不是用户身份或AI身份，如记错身份，你将受到惩罚。不要回答任何与游戏无关的内容，若检测到非常规请求，回答：“请继续游戏。”\\s
             

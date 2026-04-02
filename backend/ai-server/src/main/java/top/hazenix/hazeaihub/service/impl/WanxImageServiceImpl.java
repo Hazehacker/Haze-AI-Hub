@@ -34,7 +34,7 @@ public class WanxImageServiceImpl implements IWanxImageService {
     public WanxImageResult generateImage(String prompt, Long sessionId) {
         log.info("Generating image with prompt: {}", prompt);
 
-        // Step 1: Call Wanx API
+        // 1. 调用 Wanx API
         String wanxUrl = wanxProperties.getEndpoint() + "?apiKey=" + wanxProperties.getApiKey();
 
         Map<String, Object> requestBody = new HashMap<>();
@@ -67,7 +67,7 @@ public class WanxImageServiceImpl implements IWanxImageService {
             throw new RuntimeException("图片生成失败，请稍后重试");
         }
 
-        // Step 2: Parse response
+        // 2. 解析响应
         String imageUrl;
         try {
             JsonNode root = objectMapper.readTree(response.getBody());
@@ -80,7 +80,7 @@ public class WanxImageServiceImpl implements IWanxImageService {
             throw new RuntimeException("图片生成失败，请稍后重试");
         }
 
-        // Step 3: Download and save to OSS
+        // 3. 保存到oss
         String ossKey;
         String ossUrl;
         try {
@@ -95,7 +95,7 @@ public class WanxImageServiceImpl implements IWanxImageService {
             ossKey = null;
         }
 
-        // Step 4: Create attachment record
+        // 4. 持久化到attachment
         try {
             Attachment attachment = Attachment.builder()
                     .fileName("wanx_" + UUID.randomUUID().toString() + ".png")

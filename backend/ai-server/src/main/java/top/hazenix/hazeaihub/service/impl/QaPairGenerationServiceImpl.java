@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
+import top.hazenix.hazeaihub.constant.PromptConstant;
 import top.hazenix.hazeaihub.entity.*;
 import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbMediaMapper;
@@ -35,22 +36,6 @@ public class QaPairGenerationServiceImpl implements IQaPairGenerationService {
     private final DashScopeChatModel chatModel;
     private final DashScopeEmbeddingModel embeddingModel;
     private final ObjectMapper objectMapper;
-
-    private static final String QA_GENERATION_PROMPT = """
-            你是一个问答对生成专家。根据以下文档内容，生成 3-5 个问答对。
-            每个问答对应该：
-            1. 问题简洁、具体，模拟用户真实提问
-            2. 答案基于原文，准确且完整
-
-            文档内容：
-            %s
-
-            请以 JSON 格式输出，格式如下：
-            [
-              {"question": "问题1", "answer": "答案1"},
-              {"question": "问题2", "answer": "答案2"}
-            ]
-            """;
 
     private static final int MAX_RETRIES = 3;
     private static final int BATCH_SIZE = 10;
@@ -199,7 +184,7 @@ public class QaPairGenerationServiceImpl implements IQaPairGenerationService {
      * 调用 LLM 生成 QA 对
      */
     private List<QaPairData> callLlmForQaPairs(String content) throws Exception {
-        String prompt = String.format(QA_GENERATION_PROMPT, content);
+        String prompt = String.format(PromptConstant.QA_GENERATION_PROMPT, content);
 
         for (int retry = 0; retry < MAX_RETRIES; retry++) {
             try {

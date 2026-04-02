@@ -7,6 +7,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import top.hazenix.hazeaihub.constant.PromptConstant;
 import top.hazenix.hazeaihub.constant.RoleConstant;
 import top.hazenix.hazeaihub.entity.ChatMessage;
 import top.hazenix.hazeaihub.service.IChatMessageService;
@@ -48,7 +49,7 @@ public class TitleGenerationServiceImpl implements ITitleGenerationService {
             }
             
             String promptText = String.format(
-                "请根据以下对话内容生成一个简短的标题（不超过%d字，不要加引号）：\n\n%s\n\n标题：",
+                PromptConstant.SESSION_TITLE_GENERATE_PROMPT_V2,
                 MAX_TITLE_LENGTH,
                 conversationText.toString()
             );
