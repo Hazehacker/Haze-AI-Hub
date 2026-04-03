@@ -17,6 +17,7 @@ import top.hazenix.hazeaihub.constant.RoleConstant;
 import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.entity.ChatMessage;
 import top.hazenix.hazeaihub.entity.ChatSession;
+import top.hazenix.hazeaihub.properties.WanxProperties;
 import top.hazenix.hazeaihub.service.IChatMessageService;
 import top.hazenix.hazeaihub.service.IChatService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
@@ -43,6 +44,8 @@ public class ChatServiceImpl implements IChatService {
     private final ChatModel textChatModel;
     private final IIntentDetectionService intentDetectionService;
     private final IWanxImageService wanxImageService;
+    private final WanxProperties wanxProperties;
+
 
     /**
      * 处理普通文本聊天请求（直接使用 ChatModel 实现流式对话）
@@ -56,21 +59,21 @@ public class ChatServiceImpl implements IChatService {
         // 1. 处理会话创建
         boolean isNewSession = (sessionId == null);
         Long finalSessionId = createSessionIfNeeded(isNewSession, sessionId, groupId);
-
-        // 检测是否有“生图”的语意
+        
+        // 2. 保存用户消息（无论后续走什么流程，用户消息都需要保存）
+        chatMessageService.saveUserMessage(finalSessionId, prompt);
+        
+        // 检测是否有"生图"的语意
         IntentDetectionResult intentResult = intentDetectionService.analyzeIntent(prompt);
         if ("image_generation".equals(intentResult.getIntent())) {
             // 路由跳转到图片生成
-            return generateImageResponse(groupId, finalSessionId, intentResult.getImagePrompt(), enableThinking, thinkingBudget, model);
+            return generateImageResponse(groupId, finalSessionId, intentResult.getImagePrompt(), enableThinking, thinkingBudget, model, isNewSession);
         }
-
+        
         // 构建初始事件流（新会话通知）
         Flux<String> initialFlux = isNewSession
                 ? Flux.just("SESSION_CREATED:" + finalSessionId)
                 : Flux.empty();
-
-        // 2. 保存用户消息
-        chatMessageService.saveUserMessage(finalSessionId, prompt);
 
         // 3. 构建历史消息列表（用于上下文）
         List<Message> historyMessages = new ArrayList<>();
@@ -191,22 +194,23 @@ public class ChatServiceImpl implements IChatService {
     }
 
     private Flux<String> generateImageResponse(Long groupId, Long sessionId, String imagePrompt,
-            Boolean enableThinking, Integer thinkingBudget, String model) {
-        StringBuilder fullResponseBuilder = new StringBuilder();
-
-        // Emit session created event (already handled, but needed for return type)
-        Flux<String> initialFlux = Flux.empty();
+            Boolean enableThinking, Integer thinkingBudget, String model, boolean isNewSession) {
+        // 构建初始事件流（新会话通知）
+        Flux<String> initialFlux = isNewSession
+                ? Flux.just("SESSION_CREATED:" + sessionId)
+                : Flux.empty();
 
         // Emit AI prompt echo
         String promptEcho = "为您生成图片: " + imagePrompt;
 
         try {
             WanxImageResult imageResult = wanxImageService.generateImage(imagePrompt, sessionId);
-            String ossUrl = imageResult.getImageUrl();
 
+            // TODO 生成图片之外的其他流程都异步处理，ai对话不是强一致性的场景，先确保用户体验
+            String ossUrl = imageResult.getImageUrl();
             // Save as AI message
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("model", "wanx_flux");
+            metadata.put("model", wanxProperties.getModel());
             metadata.put("prompt", imagePrompt);
             metadata.put("image_url", ossUrl);
             metadata.put("original_url", imageResult.getOriginalUrl());
@@ -214,6 +218,11 @@ public class ChatServiceImpl implements IChatService {
             String content = "![image](" + ossUrl + ")";
             chatMessageService.saveAiMessage(sessionId, content, metadata);
             chatSessionService.updateLastActiveTime(sessionId);
+
+            // 新会话则生成标题
+            if (isNewSession) {
+                titleGenerationService.generateAndUpdateTitle(sessionId);
+            }
 
             return initialFlux
                     .concatWith(Flux.just("AI_PROMPT:" + promptEcho))

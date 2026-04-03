@@ -49,7 +49,6 @@ public class ChatMessageServiceImpl implements IChatMessageService {
     }
     
     @Override
-    @Transactional
     public Long saveAiMessage(Long sessionId, String content, Map<String, Object> metadata) {
         log.info("保存AI消息: sessionId={}, contentLength={}, metadata={}", 
                 sessionId, content.length(), metadata);

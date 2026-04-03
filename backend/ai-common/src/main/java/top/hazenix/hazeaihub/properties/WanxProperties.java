@@ -6,10 +6,10 @@ import org.springframework.stereotype.Component;
 
 @Data
 @Component
-@ConfigurationProperties(prefix = "wanx")
+@ConfigurationProperties(prefix = "ai.wanx")
 public class WanxProperties {
     private String apiKey;
-    private String model = "wanxFLUX";
-    private String endpoint = "https://dashscope.aliyuncs.com/api/v1/services/a2xlvm9xb7tx/image Generation";
+    private String model = "wanx-v1";
+    private String endpoint = "https://dashscope.aliyuncs.com/api/v1";
     private int timeout = 60000;
 }

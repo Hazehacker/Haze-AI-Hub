@@ -63,6 +63,13 @@
             <version>${spring-ai-alibaba.version}</version>
         </dependency>
 
+        <!--用于wanx-v1 调用的sdk-->
+        <!-- 版本号这里可以查：https://maven.aliyun.com/mvn/search -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>dashscope-sdk-java</artifactId>
+            <version>2.9.2</version>
+        </dependency>
         <!-- Knife4j OpenAPI 3 for Spring Boot 3 -->
         <dependency>
             <groupId>com.github.xiaoymin</groupId>

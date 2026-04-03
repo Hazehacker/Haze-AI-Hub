@@ -2,76 +2,52 @@ package top.hazenix.hazeaihub.properties;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
+import org.springframework.stereotype.Component;
 
-/**
- * Astra 知识库配置属性
- */
 @Data
-@Configuration
+@Component
 @ConfigurationProperties(prefix = "astra")
 public class AstraProperties {
 
-    /**
-     * 是否启用 Astra 功能
-     */
-    private boolean enabled = true;
+    private QueryRewrite queryRewrite = new QueryRewrite();
+    private Search search = new Search();
+    private Rerank rerank = new Rerank();
 
-    /**
-     * 文件上传配置
-     */
-    private Upload upload = new Upload();
-
-    /**
-     * 向量化配置
-     */
-    private Embedding embedding = new Embedding();
-
-    /**
-     * 文件上传配置
-     */
     @Data
-    public static class Upload {
-        /**
-         * 最大文件大小 (MB)
-         */
-        private int maxFileSize = 100;
-
-        /**
-         * 允许的文件类型
-         */
-        private String[] allowedTypes = {
-                "application/pdf",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "image/jpeg",
-                "image/png",
-                "image/gif",
-                "image/webp",
-                "audio/mpeg",
-                "audio/wav",
-                "application/x-xmind",
-                "text/plain"
-        };
+    public static class QueryRewrite {
+        private boolean enabled = true;
+        private String model = "qwen-turbo";
+        private int maxTokens = 128;
+        private double temperature = 0.3;
     }
 
-    /**
-     * 向量化配置
-     */
     @Data
-    public static class Embedding {
+    public static class Search {
+        private Fusion fusion = new Fusion();
+        private TopK topK = new TopK();
         /**
-         * Embedding 模型名称
+         * pgvector HNSW ef_search 参数：候选集大小，越大召回率越高但越慢
+         * 配合 iterative_scan=relaxed_order 使用，建议范围 100~400
          */
-        private String model = "text-embedding-v3";
+        private int efSearch = 200;
 
-        /**
-         * 向量维度
-         */
-        private int dimensions = 1024;
+        @Data
+        public static class Fusion {
+            private double alpha = 0.5;
+            private double threshold = 0.3;
+        }
 
-        /**
-         * 最大输入 tokens
-         */
-        private int maxTokens = 8192;
+        @Data
+        public static class TopK {
+            private int bm25 = 50;
+            private int vector = 50;
+        }
+    }
+
+    @Data
+    public static class Rerank {
+        private boolean enabled = true;
+        private String model = "bge-reranker-v2-m3";
+        private int topK = 10;
     }
 }

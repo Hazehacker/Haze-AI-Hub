@@ -1,10 +1,15 @@
 package top.hazenix.hazeaihub.service.impl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.alibaba.dashscope.aigc.imagesynthesis.ImageSynthesis;
+import com.alibaba.dashscope.aigc.imagesynthesis.ImageSynthesisListResult;
+import com.alibaba.dashscope.aigc.imagesynthesis.ImageSynthesisParam;
+import com.alibaba.dashscope.aigc.imagesynthesis.ImageSynthesisResult;
+import com.alibaba.dashscope.exception.ApiException;
+import com.alibaba.dashscope.exception.NoApiKeyException;
+import com.alibaba.dashscope.task.AsyncTaskListParam;
+import com.alibaba.dashscope.utils.JsonUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import top.hazenix.hazeaihub.entity.Attachment;
@@ -15,6 +20,10 @@ import top.hazenix.hazeaihub.service.result.WanxImageResult;
 import top.hazenix.hazeaihub.utils.AliOssUtil;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -28,65 +37,101 @@ public class WanxImageServiceImpl implements IWanxImageService {
     private final AliOssUtil aliOssUtil;
     private final AttachmentMapper attachmentMapper;
     private final RestTemplate wanxRestTemplate;
-    private final ObjectMapper objectMapper;
 
+    public void basicCall(String prompt) throws ApiException, NoApiKeyException {
+        // 设置parameters参数
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("prompt_extend", true);
+        parameters.put("watermark", false);
+        parameters.put("seed", 12345);
+
+        ImageSynthesisParam param =
+                ImageSynthesisParam.builder()
+                        .apiKey(wanxProperties.getApiKey())
+                        .model(wanxProperties.getModel())
+                        .prompt(prompt)
+                        .n(1)
+                        .size("1280*1280")
+                        .negativePrompt("")
+                        .parameters(parameters)
+                        .build();
+
+        ImageSynthesis imageSynthesis = new ImageSynthesis();
+        ImageSynthesisResult result = null;
+        try {
+            log.info("---sync call, please wait a moment----");
+            result = imageSynthesis.call(param);
+        } catch (ApiException | NoApiKeyException e){
+            throw new RuntimeException(e.getMessage());
+        }
+
+        log.info(JsonUtils.toJson(result));
+    }
+
+    public void listTask() throws ApiException, NoApiKeyException {
+        ImageSynthesis is = new ImageSynthesis();
+        AsyncTaskListParam param = AsyncTaskListParam.builder().build();
+        param.setApiKey(wanxProperties.getApiKey());
+        ImageSynthesisListResult result = is.list(param);
+        System.out.println(result);
+    }
+
+    public void fetchTask(String taskId) throws ApiException, NoApiKeyException {
+        ImageSynthesis is = new ImageSynthesis();
+        // If set DASHSCOPE_API_KEY environment variable, apiKey can null.
+        ImageSynthesisResult result = is.fetch(taskId, wanxProperties.getApiKey());
+        System.out.println(result.getOutput());
+        System.out.println(result.getUsage());
+    }
     @Override
     public WanxImageResult generateImage(String prompt, Long sessionId) {
         log.info("Generating image with prompt: {}", prompt);
 
-        // 1. 调用 Wanx API
-        String wanxUrl = wanxProperties.getEndpoint() + "?apiKey=" + wanxProperties.getApiKey();
-
-        Map<String, Object> requestBody = new HashMap<>();
-        Map<String, Object> input = new HashMap<>();
-        input.put("prompt", prompt);
-        input.put("size", "1024*1024");
-        input.put("n", 1);
-        requestBody.put("model", wanxProperties.getModel());
-        requestBody.put("input", input);
-
+        // 1. 构建SDK参数
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("response_format", "url");
-        requestBody.put("parameters", parameters);
+        parameters.put("prompt_extend", true);
+        parameters.put("watermark", false);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+        ImageSynthesisParam param = ImageSynthesisParam.builder()
+                .apiKey(wanxProperties.getApiKey())
+                .model(wanxProperties.getModel())
+                .prompt(prompt)
+                .n(1)
+                .size("1024*1024")
+                .negativePrompt("")
+                .parameters(parameters)
+                .build();
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        ResponseEntity<String> response;
+        // 2. 调用SDK获取结果
+        ImageSynthesisResult result;
         try {
-            response = wanxRestTemplate.exchange(
-                    wanxUrl,
-                    HttpMethod.POST,
-                    entity,
-                    String.class
-            );
-        } catch (Exception e) {
-            log.error("Wanx API call failed: {}", e.getMessage());
+            ImageSynthesis imageSynthesis = new ImageSynthesis();
+            result = imageSynthesis.call(param);
+            log.info("Wanx SDK result: {}", JsonUtils.toJson(result));
+        } catch (ApiException | NoApiKeyException e) {
+            log.error("Wanx SDK call failed: {}", e.getMessage());
             throw new RuntimeException("图片生成失败，请稍后重试");
         }
 
-        // 2. 解析响应
+        // 3. 解析图片URL
         String imageUrl;
         try {
-            JsonNode root = objectMapper.readTree(response.getBody());
-            imageUrl = root.path("output").path("image_url").asText();
+            imageUrl = result.getOutput().getResults().get(0).getOrDefault("url", null);
             if (imageUrl == null || imageUrl.isBlank()) {
-                throw new RuntimeException("Wanx API returned empty image URL");
+                throw new RuntimeException("Wanx SDK returned empty image URL");
             }
         } catch (Exception e) {
-            log.error("Failed to parse Wanx response: {}", response.getBody());
+            log.error("Failed to get image URL from SDK result: {}", e.getMessage());
             throw new RuntimeException("图片生成失败，请稍后重试");
         }
 
-        // 3. 保存到oss
+        // 4. 保存到OSS
         String ossKey;
         String ossUrl;
+        byte[] imageBytes = null;
         try {
-            byte[] imageBytes = downloadImage(imageUrl);
-            String extension = ".png";
-            ossKey = "wanx/" + UUID.randomUUID().toString() + extension;
+            imageBytes = downloadImage(imageUrl);
+            ossKey = "wanx/" + UUID.randomUUID().toString() + ".png";
             ossUrl = aliOssUtil.upload(imageBytes, ossKey);
             log.info("Image saved to OSS: {}", ossUrl);
         } catch (Exception e) {
@@ -95,34 +140,63 @@ public class WanxImageServiceImpl implements IWanxImageService {
             ossKey = null;
         }
 
-        // 4. 持久化到attachment
+        // 5. 持久化到attachment
         try {
+            // 计算contentHash（如果成功下载了图片）
+            String contentHash;
+            if (imageBytes != null && imageBytes.length > 0) {
+                contentHash = calculateSha256(imageBytes);
+            } else {
+                // 下载失败时使用占位符（OSS上传依赖Wanx预签名URL，需要用户自己处理）
+                contentHash = "pending";
+            }
+
             Attachment attachment = Attachment.builder()
                     .fileName("wanx_" + UUID.randomUUID().toString() + ".png")
                     .mimeType("image/png")
-                    .fileSize(0L)
+                    .fileSize(imageBytes != null ? (long) imageBytes.length : 0L)
                     .storagePath(ossUrl)
-                    .sourceType("wanx_flux")
+                    .contentHash(contentHash) // sha256字段
+                    .sourceType("wanx")
+                    .createdAt(LocalDateTime.now())
                     .build();
 
             attachmentMapper.insert(attachment);
             log.info("Attachment record created: id={}", attachment.getId());
         } catch (Exception e) {
             log.warn("Failed to create attachment record: {}", e.getMessage());
-            // Don't fail the whole operation if attachment recording fails
         }
 
-        WanxImageResult result = new WanxImageResult();
-        result.setImageUrl(ossUrl);
-        result.setPrompt(prompt);
-        result.setOssKey(ossKey);
-        result.setOriginalUrl(imageUrl);
+        WanxImageResult wanxResult = new WanxImageResult();
+        wanxResult.setImageUrl(ossUrl);
+        wanxResult.setPrompt(prompt);
+        wanxResult.setOssKey(ossKey);
+        wanxResult.setOriginalUrl(imageUrl);
 
         log.info("Image generation complete: prompt={}, url={}", prompt, ossUrl);
-        return result;
+        return wanxResult;
     }
 
     private byte[] downloadImage(String imageUrl) throws IOException {
         return wanxRestTemplate.getForObject(imageUrl, byte[].class);
+    }
+
+    private String calculateSha256(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            log.warn("SHA-256 algorithm not available", e);
+            return null;
+        }
     }
 }

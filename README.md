@@ -26,6 +26,16 @@
 - **AI 集成**: 阿里云 DashScope (通义千问、text-embedding-v3)
 - **消息队列**: Redis Stream
 
+## 部分功能预览图
+
+![image-20260403192115425](documents\preview-pic\text_to_pic.jpg)
+
+
+
+
+
+
+
 ## 项目结构
 
 ```

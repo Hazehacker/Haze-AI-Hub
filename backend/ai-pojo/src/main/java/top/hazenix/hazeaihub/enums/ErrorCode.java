@@ -22,7 +22,8 @@ public enum ErrorCode {
     ASTRA_PARSE_FAILED("ASTRA_006", "解析失败"),
     ASTRA_SESSION_NOT_FOUND("ASTRA_007", "会话不存在"),
     ASTRA_LIBRARY_EMPTY("ASTRA_008", "知识库为空，无法问答"),
-    ASTRA_DUPLICATE_FILE("ASTRA_009", "文件已存在");
+    ASTRA_DUPLICATE_FILE("ASTRA_009", "文件已存在"),
+    ASTRA_UPLOAD_FAILED("ASTRA_010", "文件上传失败");
 
     private final String code;
     private final String message;
