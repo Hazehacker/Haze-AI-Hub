@@ -161,7 +161,11 @@ public class QaPairGenerationServiceImpl implements IQaPairGenerationService {
         try {
             embeddings = embeddingModel.embed(questions);
         } catch (Exception e) {
-            log.error("生成 QA 向量失败", e);
+            log.error("生成 QA 向量失败，删除已插入的 QA 对: chunkId={}", chunk.getId());
+            // 嵌入生成失败时，删除已插入的 QA 对以保证原子性
+            for (KbQaPair qaPair : qaPairEntities) {
+                qaPairMapper.deleteById(qaPair.getId());
+            }
             throw new RuntimeException("生成向量失败", e);
         }
 
@@ -175,7 +179,16 @@ public class QaPairGenerationServiceImpl implements IQaPairGenerationService {
             embeddingEntities.add(embedding);
         }
 
-        qaEmbeddingMapper.batchInsert(embeddingEntities);
+        try {
+            qaEmbeddingMapper.batchInsert(embeddingEntities);
+        } catch (Exception e) {
+            log.error("插入 QA 嵌入失败，删除已插入的 QA 对: chunkId={}", chunk.getId());
+            // 嵌入插入失败时，删除已插入的 QA 对以保证原子性
+            for (KbQaPair qaPair : qaPairEntities) {
+                qaPairMapper.deleteById(qaPair.getId());
+            }
+            throw new RuntimeException("插入向量失败", e);
+        }
 
         log.debug("Chunk 生成 QA 对完成: chunkId={}, qaPairCount={}", chunk.getId(), qaPairs.size());
     }

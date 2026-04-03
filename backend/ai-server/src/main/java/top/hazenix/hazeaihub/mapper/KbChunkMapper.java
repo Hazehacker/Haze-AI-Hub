@@ -71,4 +71,15 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
      * @param chunks 分片列表
      */
     void batchInsert(@Param("chunks") List<KbChunk> chunks);
+
+    /**
+     * BM25 全文检索（使用 PostgreSQL ts_rank_cd）
+     * @param libraryId 知识库ID
+     * @param queryTerms 搜索关键词（空格分隔）
+     * @param topK 召回数量
+     * @return 包含KbChunk和bm25_score的Map列表
+     */
+    List<Map<String, Object>> bm25Search(@Param("libraryId") Long libraryId,
+                                          @Param("queryTerms") String queryTerms,
+                                          @Param("topK") int topK);
 }

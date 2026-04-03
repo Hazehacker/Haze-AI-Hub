@@ -4,9 +4,9 @@ import com.alibaba.cloud.ai.dashscope.embedding.DashScopeEmbeddingModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import top.hazenix.hazeaihub.config.AstraProperties;
 import top.hazenix.hazeaihub.dto.AstraChatRequest;
 import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.entity.KbChunk;
@@ -20,6 +20,7 @@ import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.mapper.QaEmbeddingMapper;
 import top.hazenix.hazeaihub.mapper.QaPairMapper;
+import top.hazenix.hazeaihub.properties.AstraProperties;
 import top.hazenix.hazeaihub.service.IAstraSearchService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
 import top.hazenix.hazeaihub.service.IQueryRewriteService;
@@ -63,8 +64,14 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             throw new BusinessException(ErrorCode.ASTRA_LIBRARY_EMPTY);
         }
 
-        // 2. Query 重写（可选）
-        String rewrittenQuery = queryRewriteService.rewrite(query);
+        // 2. Query 重写（可选，失败时降级为原始 query）
+        String rewrittenQuery;
+        try {
+            rewrittenQuery = queryRewriteService.rewrite(query);
+        } catch (Exception e) {
+            log.warn("Query 重写失败，使用原始 query: query={}", query, e);
+            rewrittenQuery = query;
+        }
 
         // 3. BM25 + 向量双路召回（记录分项分数）
         int bm25TopK = astraProperties.getSearch().getTopK().getBm25();
@@ -143,46 +150,21 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
      */
     private List<ChunkResponse> bm25Search(Long libraryId, String query, int topK) {
         try {
-            // 使用 PostgreSQL 全文检索
-            List<KbChunk> chunks = chunkMapper.listByLibraryId(libraryId);
+            // 使用 PostgreSQL 全文检索（SQL 层面计算 BM25 分数）
+            String queryTerms = query.toLowerCase().replaceAll("\\s+", " ");
+            List<Map<String, Object>> resultMaps = chunkMapper.bm25Search(libraryId, queryTerms, topK);
 
-            // 简单的关键词匹配评分
-            String[] queryTerms = query.toLowerCase().split("\\s+");
-            Map<Long, Double> scores = new HashMap<>();
-
-            for (KbChunk chunk : chunks) {
-                String content = chunk.getContent().toLowerCase();
-                int matchCount = 0;
-                for (String term : queryTerms) {
-                    if (content.contains(term)) {
-                        matchCount++;
-                    }
-                }
-                if (matchCount > 0) {
-                    // 简单的评分：匹配词数 * 匹配密度
-                    double score = matchCount * (1.0 / (1 + Math.log1p(content.length())));
-                    scores.put(chunk.getId(), score);
-                }
-            }
-
-            // 按评分排序
-            return scores.entrySet().stream()
-                    .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                    .limit(topK)
-                    .map(entry -> {
-                        KbChunk chunk = chunks.stream()
-                                .filter(c -> c.getId().equals(entry.getKey()))
-                                .findFirst()
-                                .orElse(null);
-                        if (chunk != null) {
-                            ChunkResponse response = toChunkResponse(chunk, null);
-                            response.setBm25Score(entry.getValue().floatValue());
-                            response.setScore(entry.getValue().floatValue());
-                            return response;
+            return resultMaps.stream()
+                    .map(map -> {
+                        KbChunk chunk = mapToChunk(map);
+                        ChunkResponse response = toChunkResponse(chunk, null);
+                        Object bm25Score = map.get("bm25_score");
+                        if (bm25Score != null) {
+                            response.setBm25Score(((Number) bm25Score).floatValue());
+                            response.setScore(((Number) bm25Score).floatValue());
                         }
-                        return null;
+                        return response;
                     })
-                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         } catch (Exception e) {
             log.error("BM25检索失败: libraryId={}, query={}", libraryId, query, e);
@@ -261,8 +243,12 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
                 .max().orElse(1.0);
 
         // 避免除以零
-        if (maxBm25Score == 0) maxBm25Score = 1.0;
-        if (maxVectorScore == 0) maxVectorScore = 1.0;
+        if (maxBm25Score == 0) {
+            maxBm25Score = 1.0;
+        }
+        if (maxVectorScore == 0) {
+            maxVectorScore = 1.0;
+        }
 
         // 归一化并融合
         Map<Long, ChunkResponse> chunkMap = new HashMap<>();
@@ -316,9 +302,27 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             int efSearch = astraProperties.getSearch().getEfSearch();
             List<KbQaEmbedding> qaEmbeddings = qaEmbeddingMapper.vectorSearch(libraryId, queryEmbedding, topK, efSearch);
 
-            // 3. 转换为 ChunkResponse
+            if (qaEmbeddings.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // 3. 批量查询所有 QA 对和 Chunk，避免 N+1 问题
+            List<Long> qaPairIds = qaEmbeddings.stream()
+                    .map(KbQaEmbedding::getQaPairId)
+                    .collect(Collectors.toList());
+            Map<Long, KbQaPair> qaPairMap = qaPairMapper.selectBatchIds(qaPairIds).stream()
+                    .collect(Collectors.toMap(KbQaPair::getId, qa -> qa));
+
+            List<Long> chunkIds = qaPairMap.values().stream()
+                    .map(KbQaPair::getChunkId)
+                    .distinct()
+                    .collect(Collectors.toList());
+            Map<Long, KbChunk> chunkMap = chunkMapper.selectBatchIds(chunkIds).stream()
+                    .collect(Collectors.toMap(KbChunk::getId, c -> c));
+
+            // 4. 转换为 ChunkResponse
             return qaEmbeddings.stream()
-                    .map(this::toChunkResponseFromQa)
+                    .map(qaEmbedding -> toChunkResponseFromQa(qaEmbedding, qaPairMap, chunkMap))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
         } catch (Exception e) {
@@ -328,16 +332,18 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     }
 
     /**
-     * 从 QA 向量检索结果转换为 ChunkResponse
+     * 从 QA 向量检索结果转换为 ChunkResponse（批量版）
      */
-    private ChunkResponse toChunkResponseFromQa(KbQaEmbedding qaEmbedding) {
+    private ChunkResponse toChunkResponseFromQa(KbQaEmbedding qaEmbedding,
+                                                  Map<Long, KbQaPair> qaPairMap,
+                                                  Map<Long, KbChunk> chunkMap) {
         try {
-            KbQaPair qaPair = qaPairMapper.selectById(qaEmbedding.getQaPairId());
+            KbQaPair qaPair = qaPairMap.get(qaEmbedding.getQaPairId());
             if (qaPair == null) {
                 return null;
             }
 
-            KbChunk chunk = chunkMapper.selectById(qaPair.getChunkId());
+            KbChunk chunk = chunkMap.get(qaPair.getChunkId());
             if (chunk == null) {
                 return null;
             }
@@ -368,10 +374,11 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
                 libraryId, query, chunks.size(), topK);
 
         try {
-            // 基于融合分数排序的Fallback实现
+            // 使用 LLM 对文档进行相关性评分排序
             // 注: DashScope bge-reranker-v2-m3 API 目前在 spring-ai-alibaba SDK 中尚无直接支持
-            // TODO: 待SDK支持后可替换为真正的Rerank API调用
-            List<ChunkResponse> sortedChunks = chunks.stream()
+            //      当前使用 ChatClient 实现基于语义相似度的轻量级重排
+            List<ChunkResponse> scoredChunks = scoreChunksWithLLM(query, chunks);
+            List<ChunkResponse> sortedChunks = scoredChunks.stream()
                     .sorted(Comparator.comparing(
                             c -> c.getScore() != null ? c.getScore() : 0f,
                             Comparator.reverseOrder()))
@@ -384,6 +391,90 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         } catch (Exception e) {
             log.error("ReRank重排序失败，退回原始顺序: libraryId={}", libraryId, e);
             return chunks.subList(0, Math.min(chunks.size(), topK));
+        }
+    }
+
+    /**
+     * 使用 LLM 对 Chunk 进行相关性评分
+     */
+    private List<ChunkResponse> scoreChunksWithLLM(String query, List<ChunkResponse> chunks) {
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append("请评估以下文档片段与用户问题的相关性。\n\n");
+        promptBuilder.append("用户问题：").append(query).append("\n\n");
+        promptBuilder.append("文档片段：\n");
+
+        for (int i = 0; i < chunks.size(); i++) {
+            ChunkResponse chunk = chunks.get(i);
+            String content = chunk.getContent() != null ? chunk.getContent() : "";
+            String source = chunk.getSource() != null ? chunk.getSource() : "未知来源";
+            // 限制每个文档的长度，避免超出 token 限制
+            String truncatedContent = content.length() > 500 ? content.substring(0, 500) + "..." : content;
+            promptBuilder.append(String.format("[%d] 来源：%s\n内容：%s\n",
+                    i + 1, source, truncatedContent));
+        }
+
+        promptBuilder.append("\n请根据相关性对文档片段评分（1-10分），返回JSON数组格式：\n");
+        promptBuilder.append("[{\"index\":1,\"score\":8.5},{\"index\":2,\"score\":6.2},...]\n");
+        promptBuilder.append("只返回JSON数组，不要其他解释。");
+
+        try {
+            String response = astraClient.prompt()
+                    .user(promptBuilder.toString())
+                    .call()
+                    .content();
+
+            // 解析 LLM 返回的评分
+            return parseRerankScores(response, chunks);
+        } catch (Exception e) {
+            log.warn("LLM 重排评分失败，使用原始融合分数: {}", e.getMessage());
+            // 评分失败时返回原始 chunks，保留其融合分数
+            return chunks;
+        }
+    }
+
+    /**
+     * 解析 LLM 返回的重排评分
+     */
+    private List<ChunkResponse> parseRerankScores(String llmResponse, List<ChunkResponse> chunks) {
+        try {
+            // 简单解析 JSON 数组格式的评分
+            String jsonStr = llmResponse.trim();
+            // 尝试提取 JSON 数组
+            int startIndex = jsonStr.indexOf('[');
+            int endIndex = jsonStr.lastIndexOf(']');
+            if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
+                jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+            }
+
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+                    new com.fasterxml.jackson.databind.ObjectMapper();
+            List<Map<String, Object>> scores = objectMapper.readValue(jsonStr,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+
+            Map<Integer, Double> scoreMap = new HashMap<>();
+            for (Map<String, Object> item : scores) {
+                Object indexObj = item.get("index");
+                Object scoreObj = item.get("score");
+                if (indexObj != null && scoreObj != null) {
+                    int idx = ((Number) indexObj).intValue() - 1; // LLM 使用 1-based 索引
+                    double score = ((Number) scoreObj).doubleValue();
+                    scoreMap.put(idx, score);
+                }
+            }
+
+            // 更新 chunks 的分数
+            List<ChunkResponse> result = new ArrayList<>();
+            for (int i = 0; i < chunks.size(); i++) {
+                ChunkResponse chunk = chunks.get(i);
+                if (scoreMap.containsKey(i)) {
+                    chunk.setScore(scoreMap.get(i).floatValue());
+                }
+                result.add(chunk);
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("解析重排评分失败: {}", e.getMessage());
+            return chunks;
         }
     }
 

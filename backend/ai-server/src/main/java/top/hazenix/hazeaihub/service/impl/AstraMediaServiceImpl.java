@@ -101,21 +101,14 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
         }
 
         String storagePath = "astra/" + libraryId + "/" + sha256;
-        String uploadUrl = null;
-        try {
-            uploadUrl = aliOssUtil.upload(file.getBytes(), storagePath);
-        } catch (IOException e) {
-            log.warn("上传文件到OSS失败");
-            throw new RuntimeException(e);
-        }
 
-        // 创建媒体记录
+        // 1. 先创建媒体记录（此时 storagePath 为空）
         KbMedia media = KbMedia.builder()
                 .libraryId(libraryId)
                 .fileName(file.getOriginalFilename())
                 .mimeType(mimeType)
                 .fileSize(fileSize)
-                .storagePath(uploadUrl)
+                .storagePath(null)
                 .sha256(sha256)
                 .status(MediaStatus.PENDING.getCode())
                 .totalChunks(0)
@@ -125,13 +118,26 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
         mediaMapper.insert(media);
         log.info("媒体记录创建成功: id={}", media.getId());
 
-        // 发送解析任务消息到 Redis Stream
+        // 2. 上传文件到 OSS
+        try {
+            String uploadUrl = aliOssUtil.upload(file.getBytes(), storagePath);
+            // 3. 更新 storagePath
+            media.setStoragePath(uploadUrl);
+            mediaMapper.updateById(media);
+        } catch (IOException e) {
+            log.warn("上传文件到OSS失败，删除数据库记录: mediaId={}", media.getId());
+            // 上传失败时删除已创建的记录，避免产生孤立记录
+            mediaMapper.deleteById(media.getId());
+            throw new BusinessException(ErrorCode.ASTRA_UPLOAD_FAILED, "文件上传失败");
+        }
+
+        // 4. 发送解析任务消息到 Redis Stream
         String fileType = getFileType(mimeType);
         ParseMessage parseMessage = ParseMessage.of(
                 media.getId(),
                 libraryId,
                 fileType,
-                uploadUrl
+                media.getStoragePath()
         );
         streamProducer.sendParseTask(parseMessage);
 

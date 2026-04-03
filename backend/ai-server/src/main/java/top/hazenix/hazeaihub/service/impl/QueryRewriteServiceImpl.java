@@ -7,8 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
-import top.hazenix.hazeaihub.config.AstraProperties;
 import top.hazenix.hazeaihub.constant.PromptConstant;
+import top.hazenix.hazeaihub.properties.AstraProperties;
 import top.hazenix.hazeaihub.service.IQueryRewriteService;
 
 @Slf4j

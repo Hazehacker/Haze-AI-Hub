@@ -30,4 +30,19 @@
         </foreach>
     </insert>
 
+    <!-- BM25 全文检索
+         使用 PostgreSQL 全文检索和 ts_rank_cd 进行关键词评分：
+         - to_tsvector('simple', content) 将内容转为 tsvector
+         - plainto_tsquery('simple', #{queryTerms}) 将关键词转为 tsquery
+         - ts_rank_cd 计算 BM25 风格的相关性评分 -->
+    <select id="bm25Search" resultType="java.util.HashMap">
+        SELECT id, library_id, media_id, content, chunk_index, metadata, created_at,
+               ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', #{queryTerms})) AS bm25_score
+        FROM kb_chunk
+        WHERE library_id = #{libraryId}
+          AND to_tsvector('simple', content) @@ plainto_tsquery('simple', #{queryTerms})
+        ORDER BY bm25_score DESC
+        LIMIT #{topK}
+    </select>
+
 </mapper>
