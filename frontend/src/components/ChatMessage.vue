@@ -49,6 +49,7 @@
         <div class="image-container">
           <img
             :src="imageUrl"
+            :data-original="imageUrl"
             class="generated-image"
             @click="openLightbox(imageUrl)"
             @error="handleImageError"
@@ -66,7 +67,8 @@
         </div>
       </div>
 
-      <div class="text-container">
+      <!-- 普通文本消息展示区域 -->
+      <div v-else class="text-container">
         <button v-if="isUser" class="user-copy-button" @click="copyContent" :title="copyButtonTitle">
           <DocumentDuplicateIcon v-if="!copied" class="copy-icon" />
           <CheckIcon v-else class="copy-icon copied" />
@@ -76,7 +78,7 @@
         </div>
         <div class="text markdown-content" ref="contentRef" v-else v-html="processedContent"></div>
       </div>
-      <div class="message-footer" v-if="!isUser">
+      <div class="message-footer" v-if="!isUser && !isImageMessage">
         <button class="copy-button" @click="copyContent" :title="copyButtonTitle">
           <DocumentDuplicateIcon v-if="!copied" class="copy-icon" />
           <CheckIcon v-else class="copy-icon copied" />
@@ -113,14 +115,20 @@ const isThinkingExpanded = ref(true)
 
 // Image message detection
 const isImageMessage = computed(() => {
-  return props.message.type === 'image' ||
+  const result = props.message.type === 'image' ||
          (props.message.metadata?.image_url && !hasThinkingContent.value);
+  console.log('[ChatMessage] isImageMessage:', result, { type: props.message.type, hasImageMeta: !!props.message.metadata?.image_url, hasThinking: hasThinkingContent.value });
+  return result;
 });
 
 const imageUrl = computed(() => {
-  return props.message.imageUrl ||
+  const url = props.message.imageUrl ||
          props.message.metadata?.image_url ||
          extractImageUrlFromContent(props.message.content);
+  if (url) {
+    console.log('[ChatMessage] imageUrl:', url);
+  }
+  return url;
 });
 
 const imagePrompt = computed(() => {
@@ -171,7 +179,16 @@ function downloadImage(url) {
 }
 
 function handleImageError(e) {
-  e.target.src = '/placeholder-image.png';
+  const img = e.target;
+  console.warn('Image failed to load:', img.src, 'Original URL:', img.dataset.original);
+  // Prevent infinite loop - only retry once with placeholder
+  if (!img.dataset.retryAttempted) {
+    img.dataset.retryAttempted = 'true';
+    img.src = '/placeholder-image.png';
+  } else {
+    console.error('Placeholder image also failed to load');
+    img.alt = '图片加载失败';
+  }
 }
 
 // 提取思考内容（从metadata或content中的think标签）
@@ -329,8 +346,8 @@ const processContent = (content) => {
 
   // 净化处理后的 HTML
   const cleanHtml = DOMPurify.sanitize(result, {
-    ADD_TAGS: ['think', 'code', 'pre', 'span', 'svg', 'path'],
-    ADD_ATTR: ['class', 'language', 'viewBox', 'fill', 'stroke', 'stroke-linecap', 'stroke-linejoin', 'stroke-width', 'd', 'style']
+    ADD_TAGS: ['think', 'code', 'pre', 'span', 'svg', 'path', 'img'],
+    ADD_ATTR: ['class', 'language', 'viewBox', 'fill', 'stroke', 'stroke-linecap', 'stroke-linejoin', 'stroke-width', 'd', 'style', 'src', 'alt', 'title', 'width', 'height']
   })
   
   // 在净化后的 HTML 中查找代码块并添加复制按钮
@@ -1294,6 +1311,18 @@ const formatTime = (timestamp) => {
   :deep(pre code) {
     background: transparent;
     padding: 0;
+  }
+
+  :deep(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 0.5em 0;
+    cursor: pointer;
+  }
+
+  :deep(img:hover) {
+    opacity: 0.9;
   }
 
   :deep(table) {
