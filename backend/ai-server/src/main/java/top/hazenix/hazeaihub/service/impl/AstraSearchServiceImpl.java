@@ -12,14 +12,10 @@ import top.hazenix.hazeaihub.entity.ChatSession;
 import top.hazenix.hazeaihub.entity.KbChunk;
 import top.hazenix.hazeaihub.entity.KbLibrary;
 import top.hazenix.hazeaihub.entity.KbMedia;
-import top.hazenix.hazeaihub.entity.KbQaEmbedding;
-import top.hazenix.hazeaihub.entity.KbQaPair;
 import top.hazenix.hazeaihub.enums.ErrorCode;
 import top.hazenix.hazeaihub.exception.BusinessException;
 import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
-import top.hazenix.hazeaihub.mapper.QaEmbeddingMapper;
-import top.hazenix.hazeaihub.mapper.QaPairMapper;
 import top.hazenix.hazeaihub.properties.AstraProperties;
 import top.hazenix.hazeaihub.service.IAstraSearchService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
@@ -39,8 +35,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
     private final KbLibraryMapper libraryMapper;
     private final KbChunkMapper chunkMapper;
-    private final QaPairMapper qaPairMapper;
-    private final QaEmbeddingMapper qaEmbeddingMapper;
     private final IChatSessionService chatSessionService;
     private final DashScopeEmbeddingModel embeddingModel;
     private final ChatClient astraClient;
@@ -48,9 +42,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     private final AstraProperties astraProperties;
 
     // 混合检索参数
-    private static final int BM25_TOP_K = 50;
-    private static final int VECTOR_TOP_K = 50;
-    private static final int QA_TOP_K = 5;
     private static final int RERANK_TOP_K = 10;
     private static final int RRF_K = 60;
 
@@ -80,17 +71,14 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         List<ChunkResponse> bm25Results = bm25Search(libraryId, rewrittenQuery, bm25TopK);
         List<ChunkResponse> vectorResults = vectorSearch(libraryId, rewrittenQuery, vectorTopK);
 
-        // 4. QA 向量检索
-        List<ChunkResponse> qaResults = qaVectorSearch(libraryId, rewrittenQuery, QA_TOP_K);
-
-        // 5. 归一化 + 加权融合
+        // 4. 归一化 + 加权融合
         double alpha = astraProperties.getSearch().getFusion().getAlpha();
         List<ChunkResponse> fusedResults = normalizeAndFuse(bm25Results, vectorResults, alpha);
 
-        // 6. RRF 合并去重（包含 QA 结果）
-        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, qaResults, topK);
+        // 5. RRF 合并去重
+        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, topK);
 
-        // 7. 阈值过滤
+        // 6. 阈值过滤
         double threshold = astraProperties.getSearch().getFusion().getThreshold();
         List<ChunkResponse> filteredResults = thresholdFilter(mergedResults, threshold);
 
@@ -178,16 +166,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     private List<ChunkResponse> rrfMerge(List<ChunkResponse> bm25Results,
                                           List<ChunkResponse> vectorResults,
                                           int topK) {
-        return rrfMerge(bm25Results, vectorResults, new ArrayList<>(), topK);
-    }
-
-    /**
-     * RRF (Reciprocal Rank Fusion) 合并（包含 QA 结果）
-     */
-    private List<ChunkResponse> rrfMerge(List<ChunkResponse> bm25Results,
-                                          List<ChunkResponse> vectorResults,
-                                          List<ChunkResponse> qaResults,
-                                          int topK) {
         Map<Long, ChunkResponse> chunkMap = new LinkedHashMap<>();
         Map<Long, Double> rrfScores = new HashMap<>();
 
@@ -202,14 +180,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         // 处理向量结果
         for (int i = 0; i < vectorResults.size(); i++) {
             ChunkResponse chunk = vectorResults.get(i);
-            chunkMap.put(chunk.getId(), chunk);
-            double prevScore = rrfScores.getOrDefault(chunk.getId(), 0.0);
-            rrfScores.put(chunk.getId(), prevScore + 1.0 / (i + RRF_K));
-        }
-
-        // 处理 QA 结果
-        for (int i = 0; i < qaResults.size(); i++) {
-            ChunkResponse chunk = qaResults.get(i);
             chunkMap.put(chunk.getId(), chunk);
             double prevScore = rrfScores.getOrDefault(chunk.getId(), 0.0);
             rrfScores.put(chunk.getId(), prevScore + 1.0 / (i + RRF_K));
@@ -288,74 +258,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         return chunks.stream()
                 .filter(c -> c.getScore() != null && c.getScore() >= threshold * 100) // 分数已缩放
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * QA 向量相似度检索
-     */
-    private List<ChunkResponse> qaVectorSearch(Long libraryId, String query, int topK) {
-        try {
-            // 1. 生成查询向量
-            float[] queryEmbedding = embeddingModel.embed(query);
-
-            // 2. 执行 QA 向量检索（同步使用 iterative_scan 配置）
-            int efSearch = astraProperties.getSearch().getEfSearch();
-            List<KbQaEmbedding> qaEmbeddings = qaEmbeddingMapper.vectorSearch(libraryId, queryEmbedding, topK, efSearch);
-
-            if (qaEmbeddings.isEmpty()) {
-                return new ArrayList<>();
-            }
-
-            // 3. 批量查询所有 QA 对和 Chunk，避免 N+1 问题
-            List<Long> qaPairIds = qaEmbeddings.stream()
-                    .map(KbQaEmbedding::getQaPairId)
-                    .collect(Collectors.toList());
-            Map<Long, KbQaPair> qaPairMap = qaPairMapper.selectBatchIds(qaPairIds).stream()
-                    .collect(Collectors.toMap(KbQaPair::getId, qa -> qa));
-
-            List<Long> chunkIds = qaPairMap.values().stream()
-                    .map(KbQaPair::getChunkId)
-                    .distinct()
-                    .collect(Collectors.toList());
-            Map<Long, KbChunk> chunkMap = chunkMapper.selectBatchIds(chunkIds).stream()
-                    .collect(Collectors.toMap(KbChunk::getId, c -> c));
-
-            // 4. 转换为 ChunkResponse
-            return qaEmbeddings.stream()
-                    .map(qaEmbedding -> toChunkResponseFromQa(qaEmbedding, qaPairMap, chunkMap))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("QA向量检索失败: libraryId={}, query={}", libraryId, query, e);
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * 从 QA 向量检索结果转换为 ChunkResponse（批量版）
-     */
-    private ChunkResponse toChunkResponseFromQa(KbQaEmbedding qaEmbedding,
-                                                  Map<Long, KbQaPair> qaPairMap,
-                                                  Map<Long, KbChunk> chunkMap) {
-        try {
-            KbQaPair qaPair = qaPairMap.get(qaEmbedding.getQaPairId());
-            if (qaPair == null) {
-                return null;
-            }
-
-            KbChunk chunk = chunkMap.get(qaPair.getChunkId());
-            if (chunk == null) {
-                return null;
-            }
-
-            ChunkResponse response = toChunkResponse(chunk, null);
-            response.setSource("qa:" + qaPair.getQuestion());
-            response.setContent("Q: " + qaPair.getQuestion() + "\n\nA: " + qaPair.getAnswer());
-            return response;
-        } catch (Exception e) {
-            log.error("转换QA检索结果失败: qaEmbeddingId={}", qaEmbedding.getId(), e);
-            return null;
-        }
     }
 
     @Override

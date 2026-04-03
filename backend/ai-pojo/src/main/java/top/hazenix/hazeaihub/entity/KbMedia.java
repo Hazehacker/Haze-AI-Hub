@@ -68,10 +68,6 @@ public class KbMedia {
     @Schema(description = "错误信息")
     private String errorMessage;
 
-    @Schema(description = "QA生成状态: PENDING/GENERATING/GENERATED/FAILED")
-    @Builder.Default
-    private String qaStatus = QaStatus.PENDING.getCode();
-
     @Schema(description = "创建时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
