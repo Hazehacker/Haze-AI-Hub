@@ -42,17 +42,14 @@
       </div>
 
       <!-- 图片消息展示区域 -->
-      <div v-else-if="isImageMessage && imageUrl" class="image-message">
+      <div v-else-if="imageUrl && !isUser" class="image-message">
         <div class="image-prompt" v-if="imagePrompt">
           为您生成图片: {{ imagePrompt }}
         </div>
         <div class="image-container">
           <img
             :src="imageUrl"
-            :data-original="imageUrl"
-            class="generated-image"
-            @click="openLightbox(imageUrl)"
-            @error="handleImageError"
+            style="display: block; width: 100%; height: auto; max-width: 512px;"
           />
         </div>
         <div class="image-actions">
@@ -115,20 +112,14 @@ const isThinkingExpanded = ref(true)
 
 // Image message detection
 const isImageMessage = computed(() => {
-  const result = props.message.type === 'image' ||
+  return props.message.type === 'image' ||
          (props.message.metadata?.image_url && !hasThinkingContent.value);
-  console.log('[ChatMessage] isImageMessage:', result, { type: props.message.type, hasImageMeta: !!props.message.metadata?.image_url, hasThinking: hasThinkingContent.value });
-  return result;
 });
 
 const imageUrl = computed(() => {
-  const url = props.message.imageUrl ||
+  return props.message.imageUrl ||
          props.message.metadata?.image_url ||
          extractImageUrlFromContent(props.message.content);
-  if (url) {
-    console.log('[ChatMessage] imageUrl:', url);
-  }
-  return url;
 });
 
 const imagePrompt = computed(() => {
