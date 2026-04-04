@@ -15,7 +15,7 @@ import java.util.Map;
 
 /**
  * Redisson Stream 消息生产者
- * 负责发送解析任务消息、延迟重试消息、死信消息
+ * 负责发送解析任务消息、死信消息
  */
 @Slf4j
 @Component
@@ -36,18 +36,6 @@ public class RedissonStreamProducer {
         StreamMessageId messageId = stream.add(args);
 
         log.info("发送解析任务成功: mediaId={}, messageId={}", message.getMediaId(), messageId);
-    }
-
-    /**
-     * 发送重试消息到主队列
-     * 消息立即入队，消费者的消费间隔通过指数退避控制
-     */
-    public void sendDelayedRetry(ParseMessage message, long delayMs) {
-        RStream<String, String> stream = redissonClient.getStream(streamConfig.getQueueName());
-        Map<String, String> fields = toMap(message);
-        StreamMessageId messageId = stream.add(StreamAddArgs.entries(fields));
-        log.info("发送重试消息: mediaId={}, retryCount={}, messageId={}",
-                message.getMediaId(), message.getRetryCount(), messageId);
     }
 
     /**

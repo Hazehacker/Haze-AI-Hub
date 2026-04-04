@@ -46,45 +46,99 @@ public class AstraParseConsumer {
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicInteger errorCount = new AtomicInteger(0);
-    private ExecutorService executor;
+
+    /** 消费循环线程（单线程，专职拉取消息） */
+    private ExecutorService consumerExecutor;
+    /** 解析工作线程池（弹性扩缩容，执行实际解析任务） */
+    private ThreadPoolExecutor workerPool;
+    /** 重试调度器（延迟调度，指数退避后重新入队） */
+    private ScheduledExecutorService retryScheduler;
+
     private String consumerName;
     private RStream<String, String> stream;
 
     @PostConstruct
     public void init() {
-        executor = new ThreadPoolExecutor(
-                2, 2, 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(100)
+        // 1. 消费循环线程：单线程，专职从 Redis Stream 拉取消息
+        consumerExecutor = new ThreadPoolExecutor(
+                1, 1, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(1),
+                r -> {
+                    Thread t = new Thread(r, "astra-consumer-loop");
+                    t.setDaemon(true);
+                    return t;
+                }
         );
 
-        consumerName = streamConfig.getConsumerNamePrefix() + UUID.randomUUID().toString().substring(0, 8);
+        // 2. 解析工作线程池：弹性扩缩容，处理 I/O 密集型文件解析
+        workerPool = new ThreadPoolExecutor(
+                streamConfig.getWorkerCoreSize(),
+                streamConfig.getWorkerMaxSize(),
+                streamConfig.getWorkerKeepAliveSeconds(), TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(streamConfig.getWorkerQueueCapacity()),
+                new ThreadFactory() {
+                    private final AtomicInteger seq = new AtomicInteger(0);
+                    @Override
+                    public Thread newThread(Runnable r) {
+                        Thread t = new Thread(r, "astra-parser-" + seq.getAndIncrement());
+                        t.setDaemon(true);
+                        return t;
+                    }
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy() // 队列满时由消费者线程执行，自动反压限流
+        );
+        // 允许核心线程超时回收，实现真正的弹性缩容
+        workerPool.allowCoreThreadTimeOut(true);
 
+        // 3. 重试调度器：负责延迟指数退避的时间后将失败消息重新投递到主队列
+        retryScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "astra-retry-scheduler");
+            t.setDaemon(true);
+            return t;
+        });
+
+        consumerName = streamConfig.getConsumerNamePrefix() + UUID.randomUUID().toString().substring(0, 8);
         stream = redissonClient.getStream(streamConfig.getQueueName());
 
-        // 确保消费者组存在
         ensureConsumerGroup();
 
-        // 启动消费者线程
+        // 启动消费循环
         running.set(true);
-        executor.submit(this::consumeLoop);
-        log.info("AstraParseConsumer 启动，consumerName={}", consumerName);
+        consumerExecutor.submit(this::consumeLoop);
+        log.info("AstraParseConsumer 启动, consumerName={}, workerPool[core={}, max={}, queue={}]",
+                consumerName, streamConfig.getWorkerCoreSize(),
+                streamConfig.getWorkerMaxSize(), streamConfig.getWorkerQueueCapacity());
     }
 
     @PreDestroy
     public void shutdown() {
         running.set(false);
-        if (executor != null) {
-            executor.shutdown();
-            try {
-                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-                    executor.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                executor.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
+        log.info("AstraParseConsumer 开始关闭...");
+
+        // 先关闭消费循环，停止拉取新消息
+        shutdownExecutor(consumerExecutor, "consumerExecutor", 5);
+        // 再关闭工作线程池，等待正在执行的解析任务完成
+        shutdownExecutor(workerPool, "workerPool", 30);
+        // 最后关闭重试调度器（等待已调度的重试任务完成投递）
+        shutdownExecutor(retryScheduler, "retryScheduler", 10);
+
+        log.info("AstraParseConsumer 已关闭");
+    }
+
+    private void shutdownExecutor(ExecutorService executor, String name, int timeoutSeconds) {
+        if (executor == null) {
+            return;
         }
-        log.info("AstraParseConsumer 关闭");
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)) {
+                log.warn("{} 未能在 {}s 内优雅关闭，强制终止", name, timeoutSeconds);
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -108,7 +162,7 @@ public class AstraParseConsumer {
                 // 阻塞读取消息，neverDelivered 确保只读取从未被消费过的消息
                 // 避免同一消息被多个消费者重复处理
                 StreamReadGroupArgs args = StreamReadGroupArgs.neverDelivered()
-                        .count(1)
+                        .count(streamConfig.getBatchSize())
                         .timeout(Duration.ofMillis(streamConfig.getBlockTimeoutMs()));
 
                 Map<StreamMessageId, Map<String, String>> entries = stream.readGroup(
@@ -123,7 +177,10 @@ public class AstraParseConsumer {
 
                 errorCount.set(0);
                 for (Map.Entry<StreamMessageId, Map<String, String>> entry : entries.entrySet()) {
-                    processMessage(entry.getKey(), entry.getValue());
+                    final StreamMessageId msgId = entry.getKey();
+                    final Map<String, String> fields = entry.getValue();
+                    // 将解析任务提交到工作线程池并行处理
+                    workerPool.submit(() -> processMessage(msgId, fields));
                 }
             } catch (Exception e) {
                 log.error("消费消息异常", e);
@@ -186,27 +243,44 @@ public class AstraParseConsumer {
     }
 
     /**
-     * 处理失败 - 使用延迟队列实现优雅重试
+     * 处理失败 - 指数退避延迟重试
+     * 退避策略：retryDelayMs * 2^(retryCount-1)，即 5s, 10s, 20s（默认 maxRetries=3）
      */
     private void handleFailure(ParseMessage message, StreamMessageId messageId, Exception e) {
         int maxRetries = streamConfig.getMaxRetries();
         int currentRetry = message.getRetryCount() != null ? message.getRetryCount() : 0;
 
-        // 先确认原消息
+        // 先确认原消息，避免被消费者组重复投递
         stream.ack(streamConfig.getConsumerGroup(), messageId);
 
         if (currentRetry < maxRetries) {
-            // 增加重试次数并发送到延迟队列
             message.incrementRetry();
-            streamProducer.sendDelayedRetry(message, streamConfig.getRetryDelayMs());
-            log.info("消息进入延迟重试队列: mediaId={}, retryCount={}, delayMs={}",
-                    message.getMediaId(), message.getRetryCount(), streamConfig.getRetryDelayMs());
+            // 指数退避：baseDelay * 2^(retryCount-1)
+            long delay = streamConfig.getRetryDelayMs() * (1L << (message.getRetryCount() - 1));
+            retryScheduler.schedule(
+                    () -> {
+                        try {
+                            streamProducer.sendParseTask(message);
+                            log.info("重试消息已重新投递到主队列: mediaId={}, retryCount={}",
+                                    message.getMediaId(), message.getRetryCount());
+                        } catch (Exception ex) {
+                            log.error("重试投递失败，直接进入死信队列: mediaId={}", message.getMediaId(), ex);
+                            streamProducer.sendToDlq(message, ex.getMessage());
+                            updateMediaStatus(message.getMediaId(), MediaStatus.FAILED, ex.getMessage());
+                            sseEmitterService.sendError(message.getMediaId(), ex.getMessage());
+                        }
+                    },
+                    delay, TimeUnit.MILLISECONDS
+            );
+            log.info("消息将在 {}ms 后重试: mediaId={}, retryCount={}/{}",
+                    delay, message.getMediaId(), message.getRetryCount(), maxRetries);
         } else {
-            // 移入死信队列
+            // 超过最大重试次数，移入死信队列
             streamProducer.sendToDlq(message, e.getMessage());
             updateMediaStatus(message.getMediaId(), MediaStatus.FAILED, e.getMessage());
             sseEmitterService.sendError(message.getMediaId(), e.getMessage());
-            log.warn("消息移入死信队列: mediaId={}", message.getMediaId());
+            log.warn("消息超过最大重试次数，移入死信队列: mediaId={}, retries={}",
+                    message.getMediaId(), currentRetry);
         }
     }
 
