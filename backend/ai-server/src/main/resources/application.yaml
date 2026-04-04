@@ -127,12 +127,11 @@ astra:
     max-tokens: 128
     temperature: 0.3
   search:
-    fusion:
-      alpha: 0.5
-      threshold: 0.3
     top-k:
       bm25: 50
       vector: 50
+    # RRF 合并后的输出数量，取前 N 个送入 ReRank
+    rrf-output-top-k: 30
     # pgvector HNSW iterative scan 候选集大小，配合 relaxed_order 使用
     # 值越大召回越准，但查询耗时增加；建议范围 100~400，按实际数据量调整
     ef-search: 200

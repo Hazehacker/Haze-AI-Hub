@@ -17,6 +17,7 @@ import top.hazenix.hazeaihub.exception.BusinessException;
 import top.hazenix.hazeaihub.mapper.KbChunkMapper;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.properties.AstraProperties;
+import top.hazenix.hazeaihub.properties.ModelProperties;
 import top.hazenix.hazeaihub.service.IAstraSearchService;
 import top.hazenix.hazeaihub.service.IChatSessionService;
 import top.hazenix.hazeaihub.service.IQueryRewriteService;
@@ -40,6 +41,7 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     private final ChatClient astraClient;
     private final IQueryRewriteService queryRewriteService;
     private final AstraProperties astraProperties;
+    private final ModelProperties modelProperties;
 
     // 混合检索参数
     private static final int RERANK_TOP_K = 10;
@@ -71,8 +73,9 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         List<ChunkResponse> bm25Results = bm25Search(libraryId, rewrittenQuery, bm25TopK);
         List<ChunkResponse> vectorResults = vectorSearch(libraryId, rewrittenQuery, vectorTopK);
 
-        // 4. RRF 合并，取 TopK=30
-        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, 30);
+// 4. RRF 合并，取 TopK=rrfOutputTopK
+        int rrfOutputTopK = astraProperties.getSearch().getRrfOutputTopK();
+        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, rrfOutputTopK);
 
         return mergedResults;
     }
@@ -205,19 +208,10 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
                 libraryId, query, chunks.size(), topK);
 
         try {
-            // 使用 LLM 对文档进行相关性评分排序
-            // 注: DashScope bge-reranker-v2-m3 API 目前在 spring-ai-alibaba SDK 中尚无直接支持
-            //      当前使用 ChatClient 实现基于语义相似度的轻量级重排
-            List<ChunkResponse> scoredChunks = scoreChunksWithLLM(query, chunks);
-            List<ChunkResponse> sortedChunks = scoredChunks.stream()
-                    .sorted(Comparator.comparing(
-                            c -> c.getScore() != null ? c.getScore() : 0f,
-                            Comparator.reverseOrder()))
-                    .limit(topK)
-                    .collect(Collectors.toList());
-
-            log.debug("ReRank完成，返回{}个结果", sortedChunks.size());
-            return sortedChunks;
+            // 调用 DashScope bge-reranker-v2-m3 API
+            List<ChunkResponse> rerankedChunks = callDashscopeRerank(query, chunks);
+            log.debug("ReRank完成，返回{}个结果", rerankedChunks.size());
+            return rerankedChunks;
 
         } catch (Exception e) {
             log.error("ReRank重排序失败，退回原始顺序: libraryId={}", libraryId, e);
@@ -226,85 +220,115 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     }
 
     /**
-     * 使用 LLM 对 Chunk 进行相关性评分
+     * 调用 DashScope bge-reranker-v2-m3 API 进行文档重排序
      */
-    private List<ChunkResponse> scoreChunksWithLLM(String query, List<ChunkResponse> chunks) {
-        StringBuilder promptBuilder = new StringBuilder();
-        promptBuilder.append("请评估以下文档片段与用户问题的相关性。\n\n");
-        promptBuilder.append("用户问题：").append(query).append("\n\n");
-        promptBuilder.append("文档片段：\n");
-
-        for (int i = 0; i < chunks.size(); i++) {
-            ChunkResponse chunk = chunks.get(i);
-            String content = chunk.getContent() != null ? chunk.getContent() : "";
-            String source = chunk.getSource() != null ? chunk.getSource() : "未知来源";
-            // 限制每个文档的长度，避免超出 token 限制
-            String truncatedContent = content.length() > 500 ? content.substring(0, 500) + "..." : content;
-            promptBuilder.append(String.format("[%d] 来源：%s\n内容：%s\n",
-                    i + 1, source, truncatedContent));
-        }
-
-        promptBuilder.append("\n请根据相关性对文档片段评分（1-10分），返回JSON数组格式：\n");
-        promptBuilder.append("[{\"index\":1,\"score\":8.5},{\"index\":2,\"score\":6.2},...]\n");
-        promptBuilder.append("只返回JSON数组，不要其他解释。");
-
+    private List<ChunkResponse> callDashscopeRerank(String query, List<ChunkResponse> chunks) {
         try {
-            String response = astraClient.prompt()
-                    .user(promptBuilder.toString())
-                    .call()
-                    .content();
+            // 构建文档列表
+            List<Map<String, String>> documents = chunks.stream()
+                    .map(chunk -> {
+                        Map<String, String> doc = new HashMap<>();
+                        doc.put("text", chunk.getContent() != null ? chunk.getContent() : "");
+                        return doc;
+                    })
+                    .collect(Collectors.toList());
 
-            // 解析 LLM 返回的评分
-            return parseRerankScores(response, chunks);
+            // 使用 HTTP 调用 DashScope Rerank API
+            String apiKey = modelProperties.getApiKey();
+            String model = astraProperties.getRerank().getModel();
+
+            // 构建请求体
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", model);
+            requestBody.put("query", query);
+            requestBody.put("documents", documents);
+
+            // 调用 API
+            String response = callDashscopeApi("/services/rerank", apiKey, requestBody);
+
+            // 解析响应
+            return parseRerankResponse(response, chunks);
+
         } catch (Exception e) {
-            log.warn("LLM 重排评分失败，使用原始融合分数: {}", e.getMessage());
-            // 评分失败时返回原始 chunks，保留其融合分数
-            return chunks;
+            log.error("调用 DashScope ReRank API 失败: {}", e.getMessage());
+            throw new RuntimeException("ReRank API 调用失败", e);
         }
     }
 
     /**
-     * 解析 LLM 返回的重排评分
+     * 调用 DashScope API (HTTP)
      */
-    private List<ChunkResponse> parseRerankScores(String llmResponse, List<ChunkResponse> chunks) {
+    private String callDashscopeApi(String endpoint, String apiKey, Map<String, Object> requestBody) {
         try {
-            // 简单解析 JSON 数组格式的评分
-            String jsonStr = llmResponse.trim();
-            // 尝试提取 JSON 数组
-            int startIndex = jsonStr.indexOf('[');
-            int endIndex = jsonStr.lastIndexOf(']');
-            if (startIndex != -1 && endIndex != -1 && startIndex < endIndex) {
-                jsonStr = jsonStr.substring(startIndex, endIndex + 1);
+            java.net.URI uri = java.net.URI.create("https://dashscope.aliyuncs.com/api/v1" + endpoint);
+
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(uri)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                            new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(requestBody)))
+                    .build();
+
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpResponse<String> response = client.send(request,
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("DashScope API 返回错误: " + response.statusCode() + " - " + response.body());
             }
 
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper =
-                    new com.fasterxml.jackson.databind.ObjectMapper();
-            List<Map<String, Object>> scores = objectMapper.readValue(jsonStr,
-                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
+            return response.body();
 
-            Map<Integer, Double> scoreMap = new HashMap<>();
-            for (Map<String, Object> item : scores) {
-                Object indexObj = item.get("index");
-                Object scoreObj = item.get("score");
-                if (indexObj != null && scoreObj != null) {
-                    int idx = ((Number) indexObj).intValue() - 1; // LLM 使用 1-based 索引
-                    double score = ((Number) scoreObj).doubleValue();
-                    scoreMap.put(idx, score);
-                }
+        } catch (Exception e) {
+            throw new RuntimeException("调用 DashScope API 失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 解析 DashScope ReRank API 响应
+     */
+    private List<ChunkResponse> parseRerankResponse(String responseJson, List<ChunkResponse> chunks) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            Map<String, Object> response = mapper.readValue(responseJson, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+
+            // 提取 results 数组
+            Map<String, Object> output = (Map<String, Object>) response.get("output");
+            if (output == null) {
+                log.warn("ReRank 响应中无 output 字段");
+                return chunks;
             }
 
-            // 更新 chunks 的分数
-            List<ChunkResponse> result = new ArrayList<>();
+            List<Map<String, Object>> results = (List<Map<String, Object>>) output.get("results");
+            if (results == null || results.isEmpty()) {
+                log.warn("ReRank 响应中无 results");
+                return chunks;
+            }
+
+            // 构建 index -> score 映射
+            Map<Integer, Float> scoreMap = new HashMap<>();
+            for (Map<String, Object> result : results) {
+                int index = ((Number) result.get("index")).intValue();
+                double score = ((Number) result.get("relevance_score")).doubleValue();
+                scoreMap.put(index, (float) score);
+            }
+
+            // 更新 chunks 分数并排序
             for (int i = 0; i < chunks.size(); i++) {
                 ChunkResponse chunk = chunks.get(i);
                 if (scoreMap.containsKey(i)) {
-                    chunk.setScore(scoreMap.get(i).floatValue());
+                    chunk.setScore(scoreMap.get(i));
                 }
-                result.add(chunk);
             }
-            return result;
+
+            // 按分数降序排序
+            return chunks.stream()
+                    .sorted(Comparator.comparing(c -> c.getScore() != null ? c.getScore() : 0f, Comparator.reverseOrder()))
+                    .collect(Collectors.toList());
+
         } catch (Exception e) {
-            log.warn("解析重排评分失败: {}", e.getMessage());
+            log.error("解析 ReRank 响应失败: {}", e.getMessage());
             return chunks;
         }
     }

@@ -23,19 +23,16 @@ public class AstraProperties {
 
     @Data
     public static class Search {
-        private Fusion fusion = new Fusion();
         private TopK topK = new TopK();
+        /**
+         * RRF 合并后的输出数量，取前 N 个送入 ReRank
+         */
+        private int rrfOutputTopK = 30;
         /**
          * pgvector HNSW ef_search 参数：候选集大小，越大召回率越高但越慢
          * 配合 iterative_scan=relaxed_order 使用，建议范围 100~400
          */
         private int efSearch = 200;
-
-        @Data
-        public static class Fusion {
-            private double alpha = 0.5;
-            private double threshold = 0.3;
-        }
 
         @Data
         public static class TopK {
