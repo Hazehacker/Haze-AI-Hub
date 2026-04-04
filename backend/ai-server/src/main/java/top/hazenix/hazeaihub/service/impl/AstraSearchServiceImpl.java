@@ -26,9 +26,6 @@ import top.hazenix.hazeaihub.vo.ChunkResponse;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.alibaba.dashscope.rerank.TextReRank;
-import com.alibaba.dashscope.rerank.TextReRankParam;
-
 /**
  * Astra RAG 检索服务实现
  */
@@ -139,7 +136,7 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
                 libraryId, query, chunks.size(), topK);
 
         try {
-            // 调用 DashScope bge-reranker-v2-m3 API
+            // 调用 qwen3-rerank API
             List<ChunkResponse> rerankedChunks = callDashscopeRerank(query, chunks);
             log.debug("ReRank完成，返回{}个结果", rerankedChunks.size());
             return rerankedChunks;
@@ -152,56 +149,100 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
     /**
      * 调用 qwen3-rerank API 进行文档重排序
+     * API: POST https://dashscope.aliyuncs.com/compatible-api/v1/reranks
      */
     private List<ChunkResponse> callDashscopeRerank(String query, List<ChunkResponse> chunks) {
-        TextReRank rerank = new TextReRank();
+        try {
+            // 构建文档列表
+            List<String> documents = chunks.stream()
+                .map(chunk -> chunk.getContent() != null ? chunk.getContent() : "")
+                .collect(Collectors.toList());
 
-        // 构建文档列表
-        List<String> documents = chunks.stream()
-            .map(chunk -> chunk.getContent() != null ? chunk.getContent() : "")
-            .collect(Collectors.toList());
+            String apiKey = modelProperties.getApiKey();
+            String model = astraProperties.getRerank().getModel();
+            int topN = astraProperties.getRerank().getTopK();
 
-        // 构建参数
-        TextReRankParam param = TextReRankParam.builder()
-            .model(astraProperties.getRerank().getModel())
-            .query(query)
-            .documents(documents)
-            .topN(astraProperties.getRerank().getTopK())
-            .returnDocuments(true)
-            .build();
+            // 构建请求体 (qwen3-rerank 格式)
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", model);
+            requestBody.put("query", query);
+            requestBody.put("documents", documents);
+            requestBody.put("top_n", topN);
+            requestBody.put("instruct", "Given a web search query, retrieve relevant passages that answer the query.");
 
-        // 调用 SDK
-        Object result = rerank.call(param);
+            // 调用 HTTP API
+            String response = callDashscopeApi("/compatible-api/v1/reranks", apiKey, requestBody);
 
-        // 解析结果
-        return parseRerankResult(result, chunks);
+            // 解析响应
+            return parseRerankResult(response, chunks);
+
+        } catch (Exception e) {
+            log.error("调用 DashScope ReRank API 失败: {}", e.getMessage());
+            throw new RuntimeException("ReRank API 调用失败", e);
+        }
     }
 
     /**
-     * 解析 DashScope SDK ReRank 结果
+     * 调用 DashScope API (HTTP)
      */
-    @SuppressWarnings("unchecked")
-    private List<ChunkResponse> parseRerankResult(Object result, List<ChunkResponse> chunks) {
+    private String callDashscopeApi(String endpoint, String apiKey, Map<String, Object> requestBody) {
         try {
-            // SDK 返回结果可能是 Map 结构
-            Map<String, Object> resultMap = (Map<String, Object>) result;
+            java.net.URI uri = java.net.URI.create("https://dashscope.aliyuncs.com" + endpoint);
+
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(uri)
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(
+                        new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(requestBody)))
+                .build();
+
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            java.net.http.HttpResponse<String> response = client.send(request,
+                java.net.http.HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("DashScope API 返回错误: " + response.statusCode() + " - " + response.body());
+            }
+
+            return response.body();
+
+        } catch (Exception e) {
+            throw new RuntimeException("调用 DashScope API 失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 解析 DashScope ReRank API 响应
+     */
+    private List<ChunkResponse> parseRerankResult(String responseJson, List<ChunkResponse> chunks) {
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            Map<String, Object> response = mapper.readValue(responseJson,
+                new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
 
             // 提取 results 数组
-            List<Map<String, Object>> results = (List<Map<String, Object>>) resultMap.get("output");
-            if (results == null) {
-                log.warn("ReRank SDK 结果中无 output 字段");
+            Map<String, Object> output = (Map<String, Object>) response.get("output");
+            if (output == null) {
+                log.warn("ReRank 响应中无 output 字段");
+                return chunks;
+            }
+
+            List<Map<String, Object>> results = (List<Map<String, Object>>) output.get("results");
+            if (results == null || results.isEmpty()) {
+                log.warn("ReRank 响应中无 results");
                 return chunks;
             }
 
             // 构建 index -> score 映射
             Map<Integer, Float> scoreMap = new HashMap<>();
-            for (Map<String, Object> item : results) {
-                int index = ((Number) item.get("index")).intValue();
-                double score = ((Number) item.get("relevance_score")).doubleValue();
+            for (Map<String, Object> result : results) {
+                int index = ((Number) result.get("index")).intValue();
+                double score = ((Number) result.get("relevance_score")).doubleValue();
                 scoreMap.put(index, (float) score);
             }
 
-            // 更新 chunks 分数并排序
+            // 更新 chunks 分数
             for (int i = 0; i < chunks.size(); i++) {
                 ChunkResponse chunk = chunks.get(i);
                 if (scoreMap.containsKey(i)) {
@@ -211,11 +252,11 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
             // 按分数降序排序
             return chunks.stream()
-                    .sorted(Comparator.comparing(c -> c.getScore() != null ? c.getScore() : 0f, Comparator.reverseOrder()))
-                    .collect(Collectors.toList());
+                .sorted(Comparator.comparing(c -> c.getScore() != null ? c.getScore() : 0f, Comparator.reverseOrder()))
+                .collect(Collectors.toList());
 
         } catch (Exception e) {
-            log.error("解析 ReRank SDK 结果失败: {}", e.getMessage());
+            log.error("解析 ReRank 响应失败: {}", e.getMessage());
             return chunks;
         }
     }

@@ -349,6 +349,50 @@ CREATE INDEX idx_chunk_embedding ON kb_chunk USING hnsw (embedding vector_cosine
 
 
 
+## RAG 架构
+
+```
+用户 Query
+    ↓
+┌─────────────────────────────────────────┐
+│  Phase 1: Query 重写                     │
+│  DashScope qwen-flash 轻量改写            │
+│  独立服务 + 配置开关                       │
+└─────────────────────────────────────────┘
+    ↓ 重写后的 Query
+┌─────────────────────────────────────────┐
+│  Phase 2: 混合搜索                       │
+│  BM25(Tok=50) + 向量双路召回(Tok=50)      │
+└─────────────────────────────────────────┘
+    ↓ 
+┌─────────────────────────────────────────┐
+│      RFF合并                             |
+│    取TopK(比如30)                        |
+└─────────────────────────────────────────┘
+    ↓ 过滤后的 chunks
+┌─────────────────────────────────────────┐
+│  Phase 3: ReRank 重排序                  │
+│  qwen3-rerank打分                        │
+│  最终取 TopK(finalTopk，比如10)           │
+└─────────────────────────────────────────┘
+    ↓
+LLM 生成答案
+
+```
+
+> 双路召回 + RFF + 取TokK(比如30) + ReRank(使用qwen3-rerank) + 取final TopK
+
+**关键参数**
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| BM25 topK | 50 | 关键词召回数量 |
+| 向量检索 topK | 50 | 向量召回数量 |
+| RRF k | 60 | RRF 平滑因子 |
+| RRF 输出 topK | 30 | 送入 ReRank 的数量 |
+| ReRank 模型 | bge-reranker-v2-m3 | DashScope 重排模型 |
+| Final topK | 10 | 送入 LLM 的数量 |
+
 
 
 ## 多轮过滤
@@ -365,7 +409,7 @@ CREATE INDEX idx_chunk_embedding ON kb_chunk USING hnsw (embedding vector_cosine
 * **例子**：`WHERE department = 'HR' AND status = 'published' AND date > '2023-01-01'`。
 * **目的**：确保绝对的安全性和时效性。这一步做完，候选集可能从 100 万篇变成了 5000 篇。
 
-项目中：在执行 HNSW 向量检索之前，先按知识库 ID 限定搜索范围
+项目中：在执行 HNSW 向量检索之前，**先按知识库 ID 限定搜索范围**
 
 ```sql
 <select id="vectorSearch" resultType="java.util.HashMap">
@@ -382,13 +426,14 @@ CREATE INDEX idx_chunk_embedding ON kb_chunk USING hnsw (embedding vector_cosine
 
 #### 问题：
 
-**如果某个知识库只占全表数据的很小比例，大部分图节点就成为了禁区，存在很大的 HNSW 退化为暴力扫描的风险**
+**如果某个知识库只占全表数据的很小比例，大部分图节点就成为了禁区， HNSW 图索引有很大风险退化为暴力扫描**
 
 
 
 #### 解决方案
 
-
+> 扩大搜索半径，保证结果数量
+>
 
 **方案一：调大 ef_search（最简单，治标）**
 原理：让 HNSW 探索更大的候选集，提高在过滤后仍能找到足够结果的概率。
@@ -511,11 +556,7 @@ SET hnsw.iterative_scan = relaxed_order;
 
 ### 二、检索策略-混合检索
 
-> #### BM25 + 向量 + RRF融合
-
-
-
-**混合检索 (Hybrid Retrieval) —— 宽泛召回**
+> #### BM25 + 向量 
 
 - 动作：同时使用 **关键词检索 (BM25) 和 向量检索 (Dense Vector)**
   - BM25 擅长匹配专有名词、精确术语。
@@ -529,54 +570,44 @@ SET hnsw.iterative_scan = relaxed_order;
 
 
 
-> #### 混合检索的其他方案
->
-> ```
-> 用户问题
->     ├── 关键词检索（BM25 / TF-IDF）→ 候选集 A
->     └── 向量检索（Embedding）→ 候选集 B
->               ↓
->          合并 + 重排序（RRF / 加权）
->               ↓
->            Top-K 结果
-> ```
->
-> **原理**：同时执行传统关键词检索和向量检索，然后用 **RRF（Reciprocal Rank Fusion）** 或**加权分数**合并结果。
->
-> **RRF 公式**：
->
-> ```
-> score(chunk) = Σ 1 / (rank_i + k)
-> ```
->
-> 其中 `rank_i` 是该 chunk 在第 i 种检索方式中的排名，`k` 是平滑因子（通常取 60）。
->
-> 
->
-> **优点**：
->
-> - 兼顾语义相似性和关键词精确匹配
-> - 鲁棒性强，不同类型 query 都能有保障
->
-> **缺点**：
->
-> - 需要维护两套索引（倒排索引 + 向量索引）
-> - 延迟更高，复杂度翻倍
-> - 权重/融合策略需要调优
+### 三、RRF合并
+
+```
+用户问题
+ ├── 关键词检索（BM25 / TF-IDF）→ 候选集 A
+ └── 向量检索（Embedding）→ 候选集 B
+           ↓
+      合并 + 重排序（RRF / 加权）
+           ↓
+        Top-K 结果
+```
+
+**原理**：同时执行传统关键词检索和向量检索，然后用 **RRF（Reciprocal Rank Fusion）** 或**加权分数**合并结果。
+
+**RRF 公式**：
+
+```
+score(chunk) = Σ 1 / (rank_i + k)
+```
+
+其中 `rank_i` 是该 chunk 在第 i 种检索方式中的排名，`k` 是平滑因子（通常取 60）。
 
 
 
-### 三、后过滤（Post-Filtering）
+**优点**：
 
-> 软规则过滤
+- 兼顾语义相似性和关键词精确匹配
+- 鲁棒性强，不同类型 query 都能有保障
+
+**缺点**：
+
+- 需要维护两套索引（**倒排索引(BM25使用到)** + 向量索引）
+- 延迟更高，复杂度翻倍
+- 权重/融合策略需要调优
 
 
 
-- 动作：
-  - **去重**：移除内容高度重复的片段。
-  - **长度过滤**：剔除太短（无信息量）或太长（超出窗口）的片段。
-  - **轻量打分**：用一个轻量模型（如 Cross-Encoder 的简化版）快速过一遍，分数低于 0.3 的直接丢弃。
-- **结果**：候选集从 100 个缩减到 20-30 个高质量片段。
+
 
 
 
@@ -587,15 +618,22 @@ SET hnsw.iterative_scan = relaxed_order;
   
     > 为降低运维成本，采用 DashScope API，不采用本地部署
 * **常见的重排序方案**：
+  
   - **Cross-Encoder**：两两过模型，精度最高但最慢
   - **BGE-Reranker**：阿里开源，效果好，速度较快
   - **Colbert**：向量化的 token 级别匹配，兼顾速度和精度
 * **作用**：
+  
   * 向量检索**快但粗糙**，适合大海捞针
   * 重排序**慢但精准**，适合精筛
-* **结果**：重新排序，<u>取 **Top 10** 或 **Top 5**</u>
+* **结果**：重新排序，取 **Top 10**
 
-
+> `qwen3-rerank` 支持 `instruct` 参数指导排序策略：
+>
+> - **问答检索（默认）**：`"Given a web search query, retrieve relevant passages that answer the query."` — 找能回答问题的文档
+> - **语义相似度**：`"Retrieve semantically similar text."` — 找语义最相似的
+>
+> 项目中保持默认
 
 
 
