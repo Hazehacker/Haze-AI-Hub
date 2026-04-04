@@ -20,6 +20,26 @@
         LIMIT #{topK}
     </select>
 
+    <select id="listByMediaId" resultType="top.hazenix.hazeaihub.entity.KbChunk">
+        SELECT * FROM kb_chunk WHERE media_id = #{mediaId} ORDER BY chunk_index
+    </select>
+
+    <select id="listByLibraryId" resultType="top.hazenix.hazeaihub.entity.KbChunk">
+        SELECT * FROM kb_chunk WHERE library_id = #{libraryId} ORDER BY media_id, chunk_index
+    </select>
+
+    <delete id="deleteByMediaId">
+        DELETE FROM kb_chunk WHERE media_id = #{mediaId}
+    </delete>
+
+    <delete id="deleteByLibraryId">
+        DELETE FROM kb_chunk WHERE library_id = #{libraryId}
+    </delete>
+
+    <select id="countByLibraryId" resultType="long">
+        SELECT COUNT(*) FROM kb_chunk WHERE library_id = #{libraryId}
+    </select>
+
     <!-- 批量插入 -->
     <insert id="batchInsert">
         INSERT INTO kb_chunk (library_id, media_id, content, embedding, chunk_index, metadata)
@@ -39,8 +59,12 @@
         SELECT id, library_id, media_id, content, chunk_index, metadata, created_at,
                ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', #{queryTerms})) AS bm25_score
         FROM kb_chunk
-        WHERE library_id = #{libraryId}
-          AND to_tsvector('simple', content) @@ plainto_tsquery('simple', #{queryTerms})
+        <where>
+            library_id = #{libraryId}
+            <if test="queryTerms != null and queryTerms != ''">
+                AND to_tsvector('simple', content) @@ plainto_tsquery('simple', #{queryTerms})
+            </if>
+        </where>
         ORDER BY bm25_score DESC
         LIMIT #{topK}
     </select>

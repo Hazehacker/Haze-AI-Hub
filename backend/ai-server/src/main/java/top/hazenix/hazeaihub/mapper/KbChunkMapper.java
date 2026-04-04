@@ -3,7 +3,6 @@ package top.hazenix.hazeaihub.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 import top.hazenix.hazeaihub.entity.KbChunk;
 
 import java.util.List;
@@ -20,7 +19,6 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
      * @param mediaId 媒体ID
      * @return 分片列表
      */
-    @Select("SELECT * FROM kb_chunk WHERE media_id = #{mediaId} ORDER BY chunk_index")
     List<KbChunk> listByMediaId(@Param("mediaId") Long mediaId);
 
     /**
@@ -28,21 +26,18 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
      * @param libraryId 知识库ID
      * @return 分片列表
      */
-    @Select("SELECT * FROM kb_chunk WHERE library_id = #{libraryId} ORDER BY media_id, chunk_index")
     List<KbChunk> listByLibraryId(@Param("libraryId") Long libraryId);
 
     /**
      * 删除媒体文件的所有分片
      * @param mediaId 媒体ID
      */
-    @Select("DELETE FROM kb_chunk WHERE media_id = #{mediaId}")
     void deleteByMediaId(@Param("mediaId") Long mediaId);
 
     /**
      * 删除知识库的所有分片
      * @param libraryId 知识库ID
      */
-    @Select("DELETE FROM kb_chunk WHERE library_id = #{libraryId}")
     void deleteByLibraryId(@Param("libraryId") Long libraryId);
 
     /**
@@ -50,7 +45,6 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
      * @param libraryId 知识库ID
      * @return 分片总数
      */
-    @Select("SELECT COUNT(*) FROM kb_chunk WHERE library_id = #{libraryId}")
     long countByLibraryId(@Param("libraryId") Long libraryId);
 
     /**

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="top.hazenix.hazeaihub.mapper.KbMediaMapper">
+
+    <select id="listByLibraryId" resultType="top.hazenix.hazeaihub.entity.KbMedia">
+        SELECT * FROM kb_media
+        <where>
+            library_id = #{libraryId}
+            <if test="status != null and status != ''">
+                AND status = #{status}
+            </if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="findByLibraryIdAndSha256" resultType="top.hazenix.hazeaihub.entity.KbMedia">
+        SELECT * FROM kb_media WHERE library_id = #{libraryId} AND sha256 = #{sha256} LIMIT 1
+    </select>
+
+    <select id="findById" resultType="top.hazenix.hazeaihub.entity.KbMedia">
+        SELECT * FROM kb_media WHERE id = #{id}
+    </select>
+
+</mapper>

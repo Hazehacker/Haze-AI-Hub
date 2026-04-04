@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="top.hazenix.hazeaihub.mapper.KbLibraryMapper">
+
+    <select id="listByOwnerWithStats" resultType="top.hazenix.hazeaihub.entity.KbLibrary">
+        SELECT l.*,
+               COUNT(DISTINCT m.id) as media_count,
+               COUNT(DISTINCT c.id) as chunk_count
+        FROM kb_library l
+        LEFT JOIN kb_media m ON l.id = m.library_id AND m.status = 'PARSED'
+        LEFT JOIN kb_chunk c ON l.id = c.library_id
+        <where>
+            l.owner_id = #{ownerId}
+            <if test="keyword != null and keyword != ''">
+                AND (l.name LIKE '%' || #{keyword} || '%' OR l.description LIKE '%' || #{keyword} || '%')
+            </if>
+        </where>
+        GROUP BY l.id
+        ORDER BY l.is_top DESC, l.created_at DESC
+    </select>
+
+    <select id="getByIdWithStats" resultType="top.hazenix.hazeaihub.entity.KbLibrary">
+        SELECT l.*,
+               COUNT(DISTINCT m.id) as media_count,
+               COUNT(DISTINCT c.id) as chunk_count
+        FROM kb_library l
+        LEFT JOIN kb_media m ON l.id = m.library_id AND m.status = 'PARSED'
+        LEFT JOIN kb_chunk c ON l.id = c.library_id
+        WHERE l.id = #{id}
+        GROUP BY l.id
+    </select>
+
+</mapper>
