@@ -28,7 +28,7 @@ public interface KbLibraryMapper extends BaseMapper<KbLibrary> {
             LEFT JOIN kb_media m ON l.id = m.library_id AND m.status = 'PARSED'
             LEFT JOIN kb_chunk c ON l.id = c.library_id
             WHERE l.owner_id = #{ownerId}
-            AND (%s)
+            AND (l.name LIKE '%' || #{keyword} || '%' OR l.description LIKE '%' || #{keyword} || '%')
             GROUP BY l.id
             ORDER BY l.is_top DESC, l.created_at DESC
             """)
