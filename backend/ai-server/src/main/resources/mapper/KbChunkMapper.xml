@@ -45,4 +45,52 @@
         LIMIT #{topK}
     </select>
 
+    <!-- 混合检索 RRF：单条 SQL 完成 BM25 + 向量双路召回 + Reciprocal Rank Fusion 合并
+         核心思路：
+         1. hnsw_config CTE：设置 pgvector iterative_scan 参数，保证预过滤场景下的召回率
+         2. vector_search CTE：向量相似度检索，按余弦距离排序取 TopK
+         3. fulltext_search CTE：全文检索，按 ts_rank_cd 评分排序取 TopK
+         4. FULL OUTER JOIN 合并两路结果，用 rrf_score() 计算融合分数
+         5. 按 RRF 分数降序输出最终 TopK -->
+    <select id="hybridSearchRrf" resultType="java.util.HashMap">
+        WITH hnsw_config AS (
+            SELECT set_config('hnsw.iterative_scan', 'relaxed_order', true),
+                   set_config('hnsw.ef_search', #{efSearch}::text, true)
+        ),
+        vector_search AS (
+            SELECT id, library_id, media_id, content, chunk_index, metadata, created_at,
+                   ROW_NUMBER() OVER (ORDER BY embedding &lt;=&gt; #{queryEmbedding}::vector) AS rank,
+                   1 - (embedding &lt;=&gt; #{queryEmbedding}::vector) AS vector_score
+            FROM kb_chunk, hnsw_config
+            WHERE library_id = #{libraryId}
+            ORDER BY embedding &lt;=&gt; #{queryEmbedding}::vector
+            LIMIT #{vectorTopK}
+        ),
+        fulltext_search AS (
+            SELECT id, library_id, media_id, content, chunk_index, metadata, created_at,
+                   ROW_NUMBER() OVER (ORDER BY ts_rank_cd(to_tsvector('simple', content), query) DESC) AS rank,
+                   ts_rank_cd(to_tsvector('simple', content), query) AS bm25_score
+            FROM kb_chunk, plainto_tsquery('simple', #{queryTerms}) query
+            WHERE library_id = #{libraryId}
+              AND to_tsvector('simple', content) @@ query
+            ORDER BY bm25_score DESC
+            LIMIT #{bm25TopK}
+        )
+        SELECT
+            COALESCE(v.id, f.id) AS id,
+            COALESCE(v.library_id, f.library_id) AS library_id,
+            COALESCE(v.media_id, f.media_id) AS media_id,
+            COALESCE(v.content, f.content) AS content,
+            COALESCE(v.chunk_index, f.chunk_index) AS chunk_index,
+            COALESCE(v.metadata, f.metadata) AS metadata,
+            COALESCE(v.created_at, f.created_at) AS created_at,
+            COALESCE(v.vector_score, 0) AS vector_score,
+            COALESCE(f.bm25_score, 0) AS bm25_score,
+            (COALESCE(rrf_score(v.rank, #{rrfK}), 0) + COALESCE(rrf_score(f.rank, #{rrfK}), 0))::float AS rrf_score
+        FROM vector_search v
+        FULL OUTER JOIN fulltext_search f ON v.id = f.id
+        ORDER BY rrf_score DESC
+        LIMIT #{topK}
+    </select>
+
 </mapper>

@@ -82,4 +82,27 @@ public interface KbChunkMapper extends BaseMapper<KbChunk> {
     List<Map<String, Object>> bm25Search(@Param("libraryId") Long libraryId,
                                           @Param("queryTerms") String queryTerms,
                                           @Param("topK") int topK);
+
+    /**
+     * 混合检索 RRF：单条 SQL 完成 BM25 + 向量双路召回 + Reciprocal Rank Fusion 合并
+     * <p>将双路召回和 RRF 融合全部下推到 PostgreSQL 执行，减少 DB 往返次数和应用层合并开销</p>
+     *
+     * @param libraryId      知识库ID
+     * @param queryEmbedding 查询向量
+     * @param queryTerms     搜索关键词（空格分隔）
+     * @param vectorTopK     向量检索召回数量
+     * @param bm25TopK       BM25 检索召回数量
+     * @param efSearch       HNSW ef_search 参数
+     * @param rrfK           RRF 平滑因子（通常为 60）
+     * @param topK           最终输出数量
+     * @return 包含 KbChunk、rrf_score、vector_score、bm25_score 的 Map 列表
+     */
+    List<Map<String, Object>> hybridSearchRrf(@Param("libraryId") Long libraryId,
+                                               @Param("queryEmbedding") float[] queryEmbedding,
+                                               @Param("queryTerms") String queryTerms,
+                                               @Param("vectorTopK") int vectorTopK,
+                                               @Param("bm25TopK") int bm25TopK,
+                                               @Param("efSearch") int efSearch,
+                                               @Param("rrfK") int rrfK,
+                                               @Param("topK") int topK);
 }

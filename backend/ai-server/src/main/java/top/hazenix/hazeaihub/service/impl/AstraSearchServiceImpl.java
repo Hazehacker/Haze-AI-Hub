@@ -45,7 +45,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
     // 混合检索参数
     private static final int RERANK_TOP_K = 10;
-    private static final int RRF_K = 60;
 
     @Override
     public List<ChunkResponse> hybridSearch(Long libraryId, String query, int topK) {
@@ -66,49 +65,42 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             rewrittenQuery = query;
         }
 
-        // 3. BM25 + 向量双路召回
+        // 3. 生成查询向量
+        float[] queryEmbedding = embeddingModel.embed(rewrittenQuery);
+
+        // 4. 准备检索参数（全部从配置读取，禁止硬编码）
+        String queryTerms = rewrittenQuery.toLowerCase().replaceAll("\\s+", " ");
         int bm25TopK = astraProperties.getSearch().getTopK().getBm25();
         int vectorTopK = astraProperties.getSearch().getTopK().getVector();
-
-        List<ChunkResponse> bm25Results = bm25Search(libraryId, rewrittenQuery, bm25TopK);
-        List<ChunkResponse> vectorResults = vectorSearch(libraryId, rewrittenQuery, vectorTopK);
-
-// 4. RRF 合并，取 TopK=rrfOutputTopK
+        int efSearch = astraProperties.getSearch().getEfSearch();
+        int rrfK = astraProperties.getSearch().getRrfK();
         int rrfOutputTopK = astraProperties.getSearch().getRrfOutputTopK();
-        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, rrfOutputTopK);
 
-        return mergedResults;
-    }
+        // 5. 单条 SQL 完成双路召回 + RRF 合并（下推到 PostgreSQL）
+        List<Map<String, Object>> resultMaps = chunkMapper.hybridSearchRrf(
+                libraryId, queryEmbedding, queryTerms,
+                vectorTopK, bm25TopK, efSearch, rrfK, rrfOutputTopK);
 
-    /**
-     * 向量相似度检索
-     */
-    private List<ChunkResponse> vectorSearch(Long libraryId, String query, int topK) {
-        try {
-            // 1. 生成查询向量
-            float[] queryEmbedding = embeddingModel.embed(query);
-
-            // 2. 从配置读取 efSearch，执行向量检索（iterative_scan 通过 SQL CTE 注入）
-            int efSearch = astraProperties.getSearch().getEfSearch();
-            List<Map<String, Object>> resultMaps = chunkMapper.vectorSearch(libraryId, queryEmbedding, topK, efSearch);
-
-            // 3. 转换为 ChunkResponse 并设置向量分数
-            return resultMaps.stream()
-                    .map(map -> {
-                        KbChunk chunk = mapToChunk(map);
-                        ChunkResponse response = toChunkResponse(chunk, null);
-                        // 设置向量相似度分数
-                        Object similarity = map.get("similarity");
-                        if (similarity != null) {
-                            response.setVectorScore(((Number) similarity).floatValue());
-                        }
-                        return response;
-                    })
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("向量检索失败: libraryId={}, query={}", libraryId, query, e);
-            return new ArrayList<>();
-        }
+        // 6. 转换为 ChunkResponse
+        return resultMaps.stream()
+                .map(map -> {
+                    KbChunk chunk = mapToChunk(map);
+                    ChunkResponse response = toChunkResponse(chunk, null);
+                    Object rrfScore = map.get("rrf_score");
+                    if (rrfScore != null) {
+                        response.setScore(((Number) rrfScore).floatValue());
+                    }
+                    Object vectorScore = map.get("vector_score");
+                    if (vectorScore != null) {
+                        response.setVectorScore(((Number) vectorScore).floatValue());
+                    }
+                    Object bm25Score = map.get("bm25_score");
+                    if (bm25Score != null) {
+                        response.setBm25Score(((Number) bm25Score).floatValue());
+                    }
+                    return response;
+                })
+                .collect(Collectors.toList());
     }
 
     /**
@@ -126,70 +118,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         Map<String, Object> metadata = (Map<String, Object>) map.get("metadata");
         chunk.setMetadata(metadata);
         return chunk;
-    }
-
-    /**
-     * BM25 关键词检索（使用 PostgreSQL 全文检索）
-     */
-    private List<ChunkResponse> bm25Search(Long libraryId, String query, int topK) {
-        try {
-            // 使用 PostgreSQL 全文检索（SQL 层面计算 BM25 分数）
-            String queryTerms = query.toLowerCase().replaceAll("\\s+", " ");
-            List<Map<String, Object>> resultMaps = chunkMapper.bm25Search(libraryId, queryTerms, topK);
-
-            return resultMaps.stream()
-                    .map(map -> {
-                        KbChunk chunk = mapToChunk(map);
-                        ChunkResponse response = toChunkResponse(chunk, null);
-                        Object bm25Score = map.get("bm25_score");
-                        if (bm25Score != null) {
-                            response.setBm25Score(((Number) bm25Score).floatValue());
-                            response.setScore(((Number) bm25Score).floatValue());
-                        }
-                        return response;
-                    })
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.error("BM25检索失败: libraryId={}, query={}", libraryId, query, e);
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * RRF (Reciprocal Rank Fusion) 合并
-     */
-    private List<ChunkResponse> rrfMerge(List<ChunkResponse> bm25Results,
-                                          List<ChunkResponse> vectorResults,
-                                          int topK) {
-        Map<Long, ChunkResponse> chunkMap = new LinkedHashMap<>();
-        Map<Long, Double> rrfScores = new HashMap<>();
-
-        // 处理 BM25 结果
-        for (int i = 0; i < bm25Results.size(); i++) {
-            ChunkResponse chunk = bm25Results.get(i);
-            chunkMap.put(chunk.getId(), chunk);
-            double prevScore = rrfScores.getOrDefault(chunk.getId(), 0.0);
-            rrfScores.put(chunk.getId(), prevScore + 1.0 / (i + RRF_K));
-        }
-
-        // 处理向量结果
-        for (int i = 0; i < vectorResults.size(); i++) {
-            ChunkResponse chunk = vectorResults.get(i);
-            chunkMap.put(chunk.getId(), chunk);
-            double prevScore = rrfScores.getOrDefault(chunk.getId(), 0.0);
-            rrfScores.put(chunk.getId(), prevScore + 1.0 / (i + RRF_K));
-        }
-
-        // 按 RRF 分数排序
-        return rrfScores.entrySet().stream()
-                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                .limit(topK)
-                .map(entry -> {
-                    ChunkResponse chunk = chunkMap.get(entry.getKey());
-                    chunk.setScore(entry.getValue().floatValue());
-                    return chunk;
-                })
-                .collect(Collectors.toList());
     }
 
     @Override

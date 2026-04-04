@@ -29,6 +29,11 @@ public class AstraProperties {
          */
         private int rrfOutputTopK = 30;
         /**
+         * RRF 平滑因子，值越大则高排名与低排名的分差越小
+         * 通常取 60，详见 Reciprocal Rank Fusion 论文
+         */
+        private int rrfK = 60;
+        /**
          * pgvector HNSW ef_search 参数：候选集大小，越大召回率越高但越慢
          * 配合 iterative_scan=relaxed_order 使用，建议范围 100~400
          */
