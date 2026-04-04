@@ -12,6 +12,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+
 /**
  * 缓存工具类
  * <p>
@@ -62,6 +64,65 @@ public class CacheUtil {
                 return null;
             }
             T value = JSONUtil.toBean(json, type);
+            // 回填本地缓存
+            if (localCache != null) {
+                localCache.put(redisKey, value);
+            }
+            log.debug("Cache hit (Redis): key={}", redisKey);
+            return value;
+        }
+
+        // 3. 查询数据库
+        T value = dbFallback.get();
+
+        // 4. 写入缓存
+        if (value != null) {
+            setWithRandomExpire(redisKey, value, time, unit);
+            if (localCache != null) {
+                localCache.put(redisKey, value);
+            }
+        } else {
+            // 防止缓存穿透：写入空值
+            stringRedisTemplate.opsForValue().set(redisKey, "", time, unit);
+        }
+
+        return value;
+    }
+
+    /**
+     * 两级缓存查询（穿透模式，支持泛型类型）
+     * <p>
+     * 流程：Caffeine → Redis → 数据库
+     * </p>
+     *
+     * @param localCacheName  Caffeine 缓存名称
+     * @param redisKey        Redis 缓存键
+     * @param typeRef         返回类型引用（支持泛型）
+     * @param dbFallback      数据库查询函数
+     * @param time            TTL 时间
+     * @param unit            TTL 时间单位
+     * @return 查询结果
+     */
+    public <T> T queryWithPassThrough(String localCacheName, String redisKey, TypeReference<T> typeRef,
+                                      Supplier<T> dbFallback, Long time, TimeUnit unit) {
+        // 1. 查询 Caffeine 本地缓存
+        Cache localCache = cacheManager.getCache(localCacheName);
+        if (localCache != null) {
+            T localValue = localCache.get(redisKey, (Class<T>) typeRef.getType());
+            if (localValue != null) {
+                log.debug("Cache hit (Caffeine): key={}", redisKey);
+                return localValue;
+            }
+        }
+
+        // 2. 查询 Redis 分布式缓存
+        String json = stringRedisTemplate.opsForValue().get(redisKey);
+        if (json != null) {
+            // 命中空值
+            if ("".equals(json)) {
+                return null;
+            }
+            T value = JSONUtil.toBean(json, typeRef.getType(), false);
             // 回填本地缓存
             if (localCache != null) {
                 localCache.put(redisKey, value);

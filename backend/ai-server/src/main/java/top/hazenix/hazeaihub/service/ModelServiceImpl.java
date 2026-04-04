@@ -14,11 +14,16 @@ import top.hazenix.hazeaihub.mapper.ModelMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import top.hazenix.hazeaihub.constant.CacheConstants;
+import top.hazenix.hazeaihub.utils.CacheUtil;
 
 @Service
 @RequiredArgsConstructor
 public class ModelServiceImpl implements IModelService{
     private final ModelMapper modelMapper;
+    private final CacheUtil cacheUtil;
 
     @Value("${haze.admin.id:1}")
     private Long adminId;
@@ -44,19 +49,31 @@ public class ModelServiceImpl implements IModelService{
         model.setUpdatedAt(LocalDateTime.now());
         modelMapper.insert(model);
 
+        // 清除缓存
+        cacheUtil.delete(CacheConstants.CAFFEINE_MODEL_LIST, CacheConstants.MODEL_LIST_KEY);
     }
 
     @Override
     public List<ModelDTO> listModels() {
+        return cacheUtil.queryWithPassThrough(
+                CacheConstants.CAFFEINE_MODEL_LIST,
+                CacheConstants.MODEL_LIST_KEY,
+                new com.fasterxml.jackson.core.type.TypeReference<List<ModelDTO>>() {},
+                this::listModelsFromDB,
+                CacheConstants.BASE_TTL_HOURS,
+                TimeUnit.HOURS
+        );
+    }
+
+    private List<ModelDTO> listModelsFromDB() {
         List<Model> models = modelMapper.selectList(new LambdaQueryWrapper<Model>()
                 .eq(Model::getStatus, true)
                 .orderByDesc(Model::getSort)
         );
-        if(models == null){
+        if (models == null) {
             throw new RuntimeException("模型列表为空");
         }
-        List<ModelDTO> modelDTOS = BeanUtil.copyToList(models, ModelDTO.class);
-        return modelDTOS;
+        return BeanUtil.copyToList(models, ModelDTO.class);
     }
 
     @Override
@@ -66,5 +83,8 @@ public class ModelServiceImpl implements IModelService{
             throw new RuntimeException(MessageConstant.NOT_AUTHED_TO_DELETE);
         }
         modelMapper.deleteById(id);
+
+        // 清除缓存
+        cacheUtil.delete(CacheConstants.CAFFEINE_MODEL_LIST, CacheConstants.MODEL_LIST_KEY);
     }
 }
