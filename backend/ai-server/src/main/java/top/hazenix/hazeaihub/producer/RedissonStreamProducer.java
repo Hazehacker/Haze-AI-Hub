@@ -39,18 +39,15 @@ public class RedissonStreamProducer {
     }
 
     /**
-     * 发送延迟重试消息
-     * 消息会先进入延迟队列，等待指定时间后再转入主队列
+     * 发送重试消息到主队列
+     * 消息立即入队，消费者的消费间隔通过指数退避控制
      */
     public void sendDelayedRetry(ParseMessage message, long delayMs) {
         RStream<String, String> stream = redissonClient.getStream(streamConfig.getQueueName());
-
         Map<String, String> fields = toMap(message);
-        StreamAddArgs<String, String> args = StreamAddArgs.entries(fields);
-        StreamMessageId messageId = stream.add(args);
-
-        log.info("发送延迟重试消息: mediaId={}, delayMs={}, messageId={}",
-                message.getMediaId(), delayMs, messageId);
+        StreamMessageId messageId = stream.add(StreamAddArgs.entries(fields));
+        log.info("发送重试消息: mediaId={}, retryCount={}, messageId={}",
+                message.getMediaId(), message.getRetryCount(), messageId);
     }
 
     /**
@@ -70,11 +67,14 @@ public class RedissonStreamProducer {
     }
 
     private Map<String, String> toMap(ParseMessage message) {
+        if (message.getMediaId() == null || message.getLibraryId() == null) {
+            throw new IllegalArgumentException("mediaId and libraryId are required");
+        }
         Map<String, String> map = new HashMap<>();
         map.put("mediaId", String.valueOf(message.getMediaId()));
         map.put("libraryId", String.valueOf(message.getLibraryId()));
-        map.put("fileType", message.getFileType());
-        map.put("ossKey", message.getOssKey());
+        map.put("fileType", message.getFileType() != null ? message.getFileType() : "");
+        map.put("ossKey", message.getOssKey() != null ? message.getOssKey() : "");
         map.put("retryCount", String.valueOf(message.getRetryCount() != null ? message.getRetryCount() : 0));
         map.put("createdAt", String.valueOf(message.getCreatedAt() != null ? message.getCreatedAt() : System.currentTimeMillis()));
         return map;

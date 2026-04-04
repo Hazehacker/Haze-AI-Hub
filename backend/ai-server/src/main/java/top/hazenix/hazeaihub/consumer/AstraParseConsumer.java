@@ -5,7 +5,6 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RStream;
-import org.redisson.api.RDelayedQueue;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 import org.redisson.api.stream.StreamCreateGroupArgs;
@@ -50,7 +49,6 @@ public class AstraParseConsumer {
     private ExecutorService executor;
     private String consumerName;
     private RStream<String, String> stream;
-    private RDelayedQueue<String> delayedQueue;
 
     @PostConstruct
     public void init() {
@@ -62,7 +60,6 @@ public class AstraParseConsumer {
         consumerName = streamConfig.getConsumerNamePrefix() + UUID.randomUUID().toString().substring(0, 8);
 
         stream = redissonClient.getStream(streamConfig.getQueueName());
-        delayedQueue = redissonClient.getDelayedQueue(redissonClient.getQueue(streamConfig.getQueueName()));
 
         // 确保消费者组存在
         ensureConsumerGroup();
@@ -95,7 +92,7 @@ public class AstraParseConsumer {
      */
     private void ensureConsumerGroup() {
         try {
-            stream.createGroup(StreamCreateGroupArgs.name(streamConfig.getConsumerGroup()).makeStream());
+            stream.createGroup(StreamCreateGroupArgs.name(streamConfig.getConsumerGroup()));
             log.info("创建消费者组成功: group={}", streamConfig.getConsumerGroup());
         } catch (Exception e) {
             log.debug("消费者组已存在: group={}, error={}", streamConfig.getConsumerGroup(), e.getMessage());
@@ -108,7 +105,8 @@ public class AstraParseConsumer {
     private void consumeLoop() {
         while (running.get()) {
             try {
-                // 阻塞读取消息，使用 Redisson 的消费者组 API
+                // 阻塞读取消息，neverDelivered 确保只读取从未被消费过的消息
+                // 避免同一消息被多个消费者重复处理
                 StreamReadGroupArgs args = StreamReadGroupArgs.neverDelivered()
                         .count(1)
                         .timeout(Duration.ofMillis(streamConfig.getBlockTimeoutMs()));
