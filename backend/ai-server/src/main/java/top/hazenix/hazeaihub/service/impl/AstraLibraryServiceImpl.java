@@ -16,8 +16,11 @@ import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.mapper.KbMediaMapper;
 import top.hazenix.hazeaihub.service.IAstraLibraryService;
 import top.hazenix.hazeaihub.vo.LibraryResponse;
+import top.hazenix.hazeaihub.constant.CacheConstants;
+import top.hazenix.hazeaihub.utils.CacheUtil;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -31,6 +34,7 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
     private final KbLibraryMapper libraryMapper;
     private final KbMediaMapper mediaMapper;
     private final KbChunkMapper chunkMapper;
+    private final CacheUtil cacheUtil;
 
     @Override
     @Transactional
@@ -57,15 +61,30 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
         libraryMapper.insert(library);
         log.info("知识库创建成功: id={}", library.getId());
 
+        // 清除缓存
+        cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_LIBRARY_LIST,
+                CacheConstants.LIBRARY_LIST_KEY_PREFIX, userId);
+
         return toResponse(library, 0L, 0L);
     }
 
     @Override
     public List<LibraryResponse> listLibraries(Long userId, String keyword, Integer page, Integer size) {
-        log.debug("获取知识库列表: userId={}, keyword={}", userId, keyword);
+        String redisKey = CacheConstants.getLibraryListKey(userId);
 
+        return cacheUtil.queryWithPassThrough(
+                CacheConstants.CAFFEINE_LIBRARY_LIST,
+                redisKey,
+                new com.fasterxml.jackson.core.type.TypeReference<List<LibraryResponse>>() {},
+                () -> listLibrariesFromDB(userId, keyword),
+                CacheConstants.BASE_TTL_HOURS,
+                TimeUnit.HOURS
+        );
+    }
+
+    private List<LibraryResponse> listLibrariesFromDB(Long userId, String keyword) {
+        log.debug("从数据库获取知识库列表: userId={}, keyword={}", userId, keyword);
         List<KbLibrary> libraries = libraryMapper.listByOwnerWithStats(userId, keyword);
-
         return libraries.stream()
                 .map(lib -> toResponse(lib, getMediaCount(lib.getId()), getChunkCount(lib.getId())))
                 .collect(Collectors.toList());
@@ -115,6 +134,10 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
 
         libraryMapper.updateById(library);
 
+        // 清除缓存
+        cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_LIBRARY_LIST,
+                CacheConstants.LIBRARY_LIST_KEY_PREFIX, userId);
+
         return toResponse(library, getMediaCount(libraryId), getChunkCount(libraryId));
     }
 
@@ -139,6 +162,10 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
         // 级联删除由数据库外键约束处理(kb_chunk, kb_media)
         libraryMapper.deleteById(libraryId);
         log.info("知识库删除成功: id={}", libraryId);
+
+        // 清除缓存
+        cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_LIBRARY_LIST,
+                CacheConstants.LIBRARY_LIST_KEY_PREFIX, userId);
     }
 
     @Override
@@ -159,6 +186,10 @@ public class AstraLibraryServiceImpl implements IAstraLibraryService {
 
         library.setIsTop(!library.getIsTop());
         libraryMapper.updateById(library);
+
+        // 清除缓存
+        cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_LIBRARY_LIST,
+                CacheConstants.LIBRARY_LIST_KEY_PREFIX, userId);
 
         return toResponse(library, getMediaCount(libraryId), getChunkCount(libraryId));
     }
