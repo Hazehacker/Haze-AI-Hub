@@ -123,7 +123,7 @@ astra:
     enable-group: true
   query-rewrite:
     enabled: true
-    model: qwen-turbo
+    model: qwen-flash
     max-tokens: 128
     temperature: 0.3
   search:

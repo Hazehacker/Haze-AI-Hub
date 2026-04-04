@@ -16,7 +16,7 @@ public class AstraProperties {
     @Data
     public static class QueryRewrite {
         private boolean enabled = true;
-        private String model = "qwen-turbo";
+        private String model = "qwen-flash";
         private int maxTokens = 128;
         private double temperature = 0.3;
     }
