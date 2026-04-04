@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -45,17 +46,19 @@ public class AstraParseConsumer {
     private final RedissonStreamProducer streamProducer;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private ExecutorService executor = new ThreadPoolExecutor(
-            2, 2, 0L, TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<>(100)
-    );
+    private final AtomicInteger errorCount = new AtomicInteger(0);
+    private ExecutorService executor;
     private String consumerName;
     private RStream<String, String> stream;
     private RDelayedQueue<String> delayedQueue;
 
     @PostConstruct
     public void init() {
-        running.set(true);
+        executor = new ThreadPoolExecutor(
+                2, 2, 0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(100)
+        );
+
         consumerName = streamConfig.getConsumerNamePrefix() + UUID.randomUUID().toString().substring(0, 8);
 
         stream = redissonClient.getStream(streamConfig.getQueueName());
@@ -65,6 +68,7 @@ public class AstraParseConsumer {
         ensureConsumerGroup();
 
         // 启动消费者线程
+        running.set(true);
         executor.submit(this::consumeLoop);
         log.info("AstraParseConsumer 启动，consumerName={}", consumerName);
     }
@@ -119,14 +123,17 @@ public class AstraParseConsumer {
                     continue;
                 }
 
+                errorCount.set(0);
                 for (Map.Entry<StreamMessageId, Map<String, String>> entry : entries.entrySet()) {
                     processMessage(entry.getKey(), entry.getValue());
                 }
             } catch (Exception e) {
                 log.error("消费消息异常", e);
                 if (running.get()) {
+                    int errors = errorCount.incrementAndGet();
                     try {
-                        Thread.sleep(1000);
+                        // 指数退避：1s, 2s, 4s, 8s, max 30s
+                        Thread.sleep(Math.min(30000L, 1000L << Math.min(errors, 5)));
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
