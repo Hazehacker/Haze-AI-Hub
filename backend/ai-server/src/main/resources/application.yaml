@@ -139,5 +139,5 @@ astra:
     ef-search: 200
   rerank:
     enabled: true
-    model: bge-reranker-v2-m3
+    model: qwen3-rerank
     top-k: 10
