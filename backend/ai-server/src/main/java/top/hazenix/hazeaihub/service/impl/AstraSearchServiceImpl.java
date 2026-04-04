@@ -26,6 +26,9 @@ import top.hazenix.hazeaihub.vo.ChunkResponse;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.alibaba.dashscope.rerank.TextReRank;
+import com.alibaba.dashscope.rerank.TextReRankParam;
+
 /**
  * Astra RAG 检索服务实现
  */
@@ -148,39 +151,30 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
     }
 
     /**
-     * 调用 DashScope bge-reranker-v2-m3 API 进行文档重排序
+     * 调用 qwen3-rerank API 进行文档重排序
      */
     private List<ChunkResponse> callDashscopeRerank(String query, List<ChunkResponse> chunks) {
-        try {
-            // 构建文档列表
-            List<Map<String, String>> documents = chunks.stream()
-                    .map(chunk -> {
-                        Map<String, String> doc = new HashMap<>();
-                        doc.put("text", chunk.getContent() != null ? chunk.getContent() : "");
-                        return doc;
-                    })
-                    .collect(Collectors.toList());
+        TextReRank rerank = new TextReRank();
 
-            // 使用 HTTP 调用 DashScope Rerank API
-            String apiKey = modelProperties.getApiKey();
-            String model = astraProperties.getRerank().getModel();
+        // 构建文档列表
+        List<String> documents = chunks.stream()
+            .map(chunk -> chunk.getContent() != null ? chunk.getContent() : "")
+            .collect(Collectors.toList());
 
-            // 构建请求体
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", model);
-            requestBody.put("query", query);
-            requestBody.put("documents", documents);
+        // 构建参数
+        TextReRankParam param = TextReRankParam.builder()
+            .model(astraProperties.getRerank().getModel())
+            .query(query)
+            .documents(documents)
+            .topN(astraProperties.getRerank().getTopK())
+            .returnDocuments(true)
+            .build();
 
-            // 调用 API
-            String response = callDashscopeApi("/services/rerank", apiKey, requestBody);
+        // 调用 SDK
+        Object result = rerank.call(param);
 
-            // 解析响应
-            return parseRerankResponse(response, chunks);
-
-        } catch (Exception e) {
-            log.error("调用 DashScope ReRank API 失败: {}", e.getMessage());
-            throw new RuntimeException("ReRank API 调用失败", e);
-        }
+        // 解析结果
+        return parseRerankResult(result, chunks);
     }
 
     /**
@@ -257,6 +251,49 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
 
         } catch (Exception e) {
             log.error("解析 ReRank 响应失败: {}", e.getMessage());
+            return chunks;
+        }
+    }
+
+    /**
+     * 解析 DashScope SDK ReRank 结果
+     */
+    @SuppressWarnings("unchecked")
+    private List<ChunkResponse> parseRerankResult(Object result, List<ChunkResponse> chunks) {
+        try {
+            // SDK 返回结果可能是 Map 结构
+            Map<String, Object> resultMap = (Map<String, Object>) result;
+
+            // 提取 results 数组
+            List<Map<String, Object>> results = (List<Map<String, Object>>) resultMap.get("output");
+            if (results == null) {
+                log.warn("ReRank SDK 结果中无 output 字段");
+                return chunks;
+            }
+
+            // 构建 index -> score 映射
+            Map<Integer, Float> scoreMap = new HashMap<>();
+            for (Map<String, Object> item : results) {
+                int index = ((Number) item.get("index")).intValue();
+                double score = ((Number) item.get("relevance_score")).doubleValue();
+                scoreMap.put(index, (float) score);
+            }
+
+            // 更新 chunks 分数并排序
+            for (int i = 0; i < chunks.size(); i++) {
+                ChunkResponse chunk = chunks.get(i);
+                if (scoreMap.containsKey(i)) {
+                    chunk.setScore(scoreMap.get(i));
+                }
+            }
+
+            // 按分数降序排序
+            return chunks.stream()
+                    .sorted(Comparator.comparing(c -> c.getScore() != null ? c.getScore() : 0f, Comparator.reverseOrder()))
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            log.error("解析 ReRank SDK 结果失败: {}", e.getMessage());
             return chunks;
         }
     }
