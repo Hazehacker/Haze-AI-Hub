@@ -73,8 +73,8 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
         List<ChunkResponse> bm25Results = bm25Search(libraryId, rewrittenQuery, bm25TopK);
         List<ChunkResponse> vectorResults = vectorSearch(libraryId, rewrittenQuery, vectorTopK);
 
-        // 4. RRF 合并，取 TopK=30
-        int rrfOutputTopK = 30; // TODO: 从配置读取
+        // 4. RRF 合并，取 TopK=rrfOutputTopK
+        int rrfOutputTopK = astraProperties.getSearch().getRrfOutputTopK();
         List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, rrfOutputTopK);
 
         return mergedResults;
