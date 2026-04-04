@@ -64,25 +64,17 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
             rewrittenQuery = query;
         }
 
-        // 3. BM25 + 向量双路召回（记录分项分数）
+        // 3. BM25 + 向量双路召回
         int bm25TopK = astraProperties.getSearch().getTopK().getBm25();
         int vectorTopK = astraProperties.getSearch().getTopK().getVector();
 
         List<ChunkResponse> bm25Results = bm25Search(libraryId, rewrittenQuery, bm25TopK);
         List<ChunkResponse> vectorResults = vectorSearch(libraryId, rewrittenQuery, vectorTopK);
 
-        // 4. 归一化 + 加权融合
-        double alpha = astraProperties.getSearch().getFusion().getAlpha();
-        List<ChunkResponse> fusedResults = normalizeAndFuse(bm25Results, vectorResults, alpha);
+        // 4. RRF 合并，取 TopK=30
+        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, 30);
 
-        // 5. RRF 合并去重
-        List<ChunkResponse> mergedResults = rrfMerge(bm25Results, vectorResults, topK);
-
-        // 6. 阈值过滤
-        double threshold = astraProperties.getSearch().getFusion().getThreshold();
-        List<ChunkResponse> filteredResults = thresholdFilter(mergedResults, threshold);
-
-        return filteredResults;
+        return mergedResults;
     }
 
     /**
@@ -194,69 +186,6 @@ public class AstraSearchServiceImpl implements IAstraSearchService {
                     chunk.setScore(entry.getValue().floatValue());
                     return chunk;
                 })
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * 归一化 + 加权融合 BM25 和向量分数
-     */
-    private List<ChunkResponse> normalizeAndFuse(List<ChunkResponse> bm25Results,
-                                                 List<ChunkResponse> vectorResults,
-                                                 double alpha) {
-        // 找最大分数用于归一化
-        double maxBm25Score = bm25Results.stream()
-                .mapToDouble(c -> c.getBm25Score() != null ? c.getBm25Score() : 0)
-                .max().orElse(1.0);
-
-        double maxVectorScore = vectorResults.stream()
-                .mapToDouble(c -> c.getVectorScore() != null ? c.getVectorScore() : 0)
-                .max().orElse(1.0);
-
-        // 避免除以零
-        if (maxBm25Score == 0) {
-            maxBm25Score = 1.0;
-        }
-        if (maxVectorScore == 0) {
-            maxVectorScore = 1.0;
-        }
-
-        // 归一化并融合
-        Map<Long, ChunkResponse> chunkMap = new HashMap<>();
-        Map<Long, Double> fusionScores = new HashMap<>();
-
-        // 处理 BM25 结果
-        for (ChunkResponse chunk : bm25Results) {
-            chunkMap.put(chunk.getId(), chunk);
-            double normalizedBm25 = (chunk.getBm25Score() != null ? chunk.getBm25Score() : 0) / maxBm25Score;
-            double currentScore = fusionScores.getOrDefault(chunk.getId(), 0.0);
-            fusionScores.put(chunk.getId(), currentScore + alpha * normalizedBm25);
-        }
-
-        // 处理向量结果
-        for (ChunkResponse chunk : vectorResults) {
-            chunkMap.put(chunk.getId(), chunk);
-            double normalizedVector = (chunk.getVectorScore() != null ? chunk.getVectorScore() : 0) / maxVectorScore;
-            double currentScore = fusionScores.getOrDefault(chunk.getId(), 0.0);
-            fusionScores.put(chunk.getId(), currentScore + (1 - alpha) * normalizedVector);
-        }
-
-        // 返回融合后的结果
-        return fusionScores.entrySet().stream()
-                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
-                .map(entry -> {
-                    ChunkResponse chunk = chunkMap.get(entry.getKey());
-                    chunk.setScore((float) (entry.getValue() * 100)); // 缩放分数便于阅读
-                    return chunk;
-                })
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * 阈值过滤：保留融合分 >= threshold 的 chunks
-     */
-    private List<ChunkResponse> thresholdFilter(List<ChunkResponse> chunks, double threshold) {
-        return chunks.stream()
-                .filter(c -> c.getScore() != null && c.getScore() >= threshold * 100) // 分数已缩放
                 .collect(Collectors.toList());
     }
 
