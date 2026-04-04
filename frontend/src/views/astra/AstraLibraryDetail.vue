@@ -278,110 +278,124 @@ onUnmounted(() => {
 
 <style scoped>
 .library-detail {
-  padding: 24px;
-  max-width: 1000px;
-  margin: 0 auto;
+  padding: 32px 48px;
+  max-width: 100%;
+  min-height: calc(100vh - 64px);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  background: white;
+  padding: 28px 32px;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
 }
 
 .header-left {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
+  gap: 20px;
 }
 
 .back-btn {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f5f5f5;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s;
 }
 
 .back-btn:hover {
-  background: #e0e0e0;
+  background: #e8e8e8;
+  transform: translateX(-4px);
 }
 
 .back-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
+  color: #666;
 }
 
 .library-name {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 4px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 8px;
 }
 
 .library-desc {
-  font-size: 14px;
+  font-size: 15px;
   color: #999;
 }
 
 .header-right {
   display: flex;
-  gap: 12px;
+  gap: 16px;
 }
 
 .btn-primary,
 .btn-secondary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  gap: 10px;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #e85d04 0%, #ff7b00 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
 }
 
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(232, 93, 4, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(102, 126, 234, 0.4);
 }
 
 .btn-secondary {
   background: white;
   color: #666;
-  border: 1px solid #e0e0e0;
+  border: 2px solid #e8e8e8;
 }
 
 .btn-secondary:hover {
-  background: #f5f5f5;
+  background: #f8f9fa;
+  border-color: #d0d0d0;
 }
 
 .btn-secondary svg,
 .btn-primary svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .stats-bar {
   display: flex;
-  gap: 32px;
-  padding: 20px 24px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  margin-bottom: 24px;
+  gap: 48px;
+  padding: 24px 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  margin-bottom: 28px;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .stat-item {
@@ -390,99 +404,108 @@ onUnmounted(() => {
 }
 
 .stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #333;
+  font-size: 32px;
+  font-weight: 700;
+  color: white;
 }
 
 .stat-label {
-  font-size: 13px;
-  color: #999;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 4px;
 }
 
 .tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #e0e0e0;
-  padding-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 24px;
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .tab {
-  padding: 8px 16px;
-  background: none;
-  border: none;
-  border-radius: 6px;
+  padding: 12px 24px;
+  background: white;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
   font-size: 14px;
+  font-weight: 500;
   color: #666;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s;
 }
 
 .tab:hover {
-  background: #f5f5f5;
+  border-color: #667eea;
+  color: #667eea;
 }
 
 .tab.active {
-  background: #e85d04;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  border-color: transparent;
 }
 
 .file-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .file-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
+  gap: 20px;
+  padding: 20px 24px;
   background: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: all 0.2s;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .file-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 .file-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f0f0;
+  background: #f5f5f5;
   color: #666;
 }
 
 .file-icon.pdf {
-  background: rgba(220, 53, 69, 0.1);
+  background: linear-gradient(135deg, rgba(220, 53, 69, 0.15), rgba(220, 53, 69, 0.05));
   color: #dc3545;
 }
 
 .file-icon.word {
-  background: rgba(52, 152, 219, 0.1);
+  background: linear-gradient(135deg, rgba(52, 152, 219, 0.15), rgba(52, 152, 219, 0.05));
   color: #3498db;
 }
 
 .file-icon.image {
-  background: rgba(155, 89, 182, 0.1);
+  background: linear-gradient(135deg, rgba(155, 89, 182, 0.15), rgba(155, 89, 182, 0.05));
   color: #9b59b6;
 }
 
 .file-icon.audio {
-  background: rgba(46, 204, 113, 0.1);
+  background: linear-gradient(135deg, rgba(46, 204, 113, 0.15), rgba(46, 204, 113, 0.05));
   color: #2ecc71;
 }
 
 .file-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
 }
 
 .file-info {
@@ -491,10 +514,10 @@ onUnmounted(() => {
 }
 
 .file-name {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   color: #333;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -502,8 +525,8 @@ onUnmounted(() => {
 
 .file-meta {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
+  gap: 16px;
+  font-size: 13px;
   color: #999;
 }
 
@@ -511,24 +534,25 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 6px;
-  min-width: 80px;
+  gap: 8px;
+  min-width: 100px;
 }
 
 .status-badge {
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 500;
 }
 
 .status-badge.PENDING {
-  background: #f0f0f0;
+  background: #f5f5f5;
   color: #999;
 }
 
 .status-badge.PARSING {
-  background: rgba(232, 93, 4, 0.1);
-  color: #e85d04;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
 }
 
 .status-badge.PARSED {
@@ -542,39 +566,40 @@ onUnmounted(() => {
 }
 
 .progress-bar {
-  width: 80px;
-  height: 4px;
-  background: #e0e0e0;
-  border-radius: 2px;
+  width: 100px;
+  height: 6px;
+  background: #e8e8e8;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .progress {
   height: 100%;
-  background: linear-gradient(90deg, #e85d04, #ff7b00);
+  background: linear-gradient(90deg, #667eea, #764ba2);
   transition: width 0.3s;
+  border-radius: 3px;
 }
 
 .file-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .action-btn {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #f5f5f5;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .action-btn:hover {
-  background: #e0e0e0;
+  background: #e8e8e8;
 }
 
 .action-btn.delete:hover {
@@ -583,40 +608,42 @@ onUnmounted(() => {
 }
 
 .action-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 20px;
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 .empty-icon {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 20px;
-  background: #f5f5f5;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 24px;
+  background: linear-gradient(135deg, #667eea20, #764ba220);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ccc;
+  color: #667eea;
 }
 
 .empty-icon svg {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
 }
 
 .empty-state h3 {
-  font-size: 18px;
+  font-size: 20px;
   color: #333;
   margin-bottom: 8px;
 }
 
 .empty-state p {
-  font-size: 14px;
+  font-size: 15px;
   color: #999;
 }
 
@@ -627,6 +654,7 @@ onUnmounted(() => {
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -635,40 +663,85 @@ onUnmounted(() => {
 
 .modal {
   background: white;
-  border-radius: 16px;
+  border-radius: 24px;
   width: 90%;
-  max-width: 400px;
+  max-width: 440px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
-  padding: 20px 24px;
+  padding: 24px 28px;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .modal-header h2 {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
+  color: #333;
 }
 
 .modal-body {
-  padding: 24px;
+  padding: 28px;
 }
 
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 16px 24px;
+  padding: 20px 28px;
   border-top: 1px solid #f0f0f0;
 }
 
 .btn-danger {
-  padding: 10px 20px;
+  padding: 12px 24px;
   background: #dc3545;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+@media (max-width: 768px) {
+  .library-detail {
+    padding: 20px;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .header-right {
+    width: 100%;
+  }
+
+  .btn-primary, .btn-secondary {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .stats-bar {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .file-item {
+    flex-wrap: wrap;
+  }
+
+  .file-status {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 </style>

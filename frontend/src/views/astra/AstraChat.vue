@@ -324,13 +324,21 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px;
-  background: linear-gradient(135deg, #e85d04 0%, #ff7b00 100%);
+  padding: 14px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.new-chat-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .new-chat-btn svg {
@@ -366,8 +374,8 @@ onMounted(() => {
 .session-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #3498db 0%, #2ecc71 100%);
-  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -453,13 +461,14 @@ onMounted(() => {
 .welcome-icon {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #e85d04 0%, #ff7b00 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   margin-bottom: 24px;
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.3);
 }
 
 .welcome-icon svg {
@@ -533,12 +542,12 @@ onMounted(() => {
 }
 
 .message.user .message-avatar {
-  background: linear-gradient(135deg, #e85d04 0%, #ff7b00 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
 .message.assistant .message-avatar {
-  background: linear-gradient(135deg, #3498db 0%, #2ecc71 100%);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
   color: white;
 }
 
@@ -564,7 +573,7 @@ onMounted(() => {
 }
 
 .message.user .message-text {
-  background: linear-gradient(135deg, #e85d04 0%, #ff7b00 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 }
 
@@ -623,7 +632,8 @@ onMounted(() => {
 }
 
 .input-wrapper textarea:focus {
-  border-color: #e85d04;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .send-btn {
@@ -632,12 +642,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #e85d04 0%, #ff7b00 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
 .send-btn:hover:not(:disabled) {
