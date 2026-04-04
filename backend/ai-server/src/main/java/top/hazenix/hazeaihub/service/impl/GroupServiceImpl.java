@@ -13,11 +13,16 @@ import top.hazenix.hazeaihub.service.IGroupService;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import top.hazenix.hazeaihub.constant.CacheConstants;
+import top.hazenix.hazeaihub.utils.CacheUtil;
 
 @Service
 @RequiredArgsConstructor
 public class GroupServiceImpl implements IGroupService {
     private final GroupMapper groupMapper;
+    private final CacheUtil cacheUtil;
 
     @Override
     public void addGroup(GroupDTO groupDTO) {
@@ -33,17 +38,33 @@ public class GroupServiceImpl implements IGroupService {
                 .createdAt(LocalDateTime.now())
                 .build();
         groupMapper.insert(group);
+
+        // 清除缓存
+        cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_GROUP_LIST,
+                CacheConstants.GROUP_LIST_KEY_PREFIX, group.getUserId());
     }
 
     @Override
     public List<Group> queryGroup() {
         Long currentId = BaseContext.getCurrentId();
+        String redisKey = CacheConstants.getGroupListKey(currentId);
 
+        return cacheUtil.queryWithPassThrough(
+                CacheConstants.CAFFEINE_GROUP_LIST,
+                redisKey,
+                new com.fasterxml.jackson.core.type.TypeReference<List<Group>>() {},
+                () -> queryGroupFromDB(currentId),
+                CacheConstants.BASE_TTL_HOURS,
+                TimeUnit.HOURS
+        );
+    }
+
+    private List<Group> queryGroupFromDB(Long userId) {
         return groupMapper.selectList(
                 new LambdaQueryWrapper<Group>()
-                        .eq(Group::getUserId, currentId)
+                        .eq(Group::getUserId, userId)
                         .orderByDesc(Group::getSort)
-                );
+        );
     }
 
     @Override
@@ -55,6 +76,12 @@ public class GroupServiceImpl implements IGroupService {
         }
 
         groupMapper.deleteById(id);
+
+        // 清除缓存
+        if (group != null) {
+            cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_GROUP_LIST,
+                    CacheConstants.GROUP_LIST_KEY_PREFIX, group.getUserId());
+        }
     }
 
     @Override
@@ -71,5 +98,9 @@ public class GroupServiceImpl implements IGroupService {
                 .set(Group::getSort, groupDTO.getSort());
         
         groupMapper.update(updateWrapper);
+
+        // 清除缓存
+        cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_GROUP_LIST,
+                CacheConstants.GROUP_LIST_KEY_PREFIX, group.getUserId());
     }
 }
