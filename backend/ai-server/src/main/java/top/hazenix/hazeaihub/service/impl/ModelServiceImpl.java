@@ -1,10 +1,11 @@
-package top.hazenix.hazeaihub.service;
+package top.hazenix.hazeaihub.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import top.hazenix.hazeaihub.constant.CacheConstants;
 import top.hazenix.hazeaihub.constant.MessageConstant;
 import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.dto.ModelDTO;
@@ -16,12 +17,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import top.hazenix.hazeaihub.constant.CacheConstants;
+import top.hazenix.hazeaihub.service.IModelService;
 import top.hazenix.hazeaihub.utils.CacheUtil;
 
 @Service
 @RequiredArgsConstructor
-public class ModelServiceImpl implements IModelService{
+public class ModelServiceImpl implements IModelService {
     private final ModelMapper modelMapper;
     private final CacheUtil cacheUtil;
 

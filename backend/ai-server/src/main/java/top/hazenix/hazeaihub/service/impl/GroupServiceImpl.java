@@ -2,9 +2,9 @@ package top.hazenix.hazeaihub.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import top.hazenix.hazeaihub.constant.CacheConstants;
 import top.hazenix.hazeaihub.context.BaseContext;
 import top.hazenix.hazeaihub.dto.GroupDTO;
 import top.hazenix.hazeaihub.entity.Group;
@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import top.hazenix.hazeaihub.constant.CacheConstants;
 import top.hazenix.hazeaihub.utils.CacheUtil;
 
 @Service
@@ -101,6 +100,6 @@ public class GroupServiceImpl implements IGroupService {
 
         // 清除缓存
         cacheUtil.deleteWithUserId(CacheConstants.CAFFEINE_GROUP_LIST,
-                CacheConstants.GROUP_LIST_KEY_PREFIX, group.getUserId());
+                    CacheConstants.GROUP_LIST_KEY_PREFIX, group.getUserId());
     }
 }

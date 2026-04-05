@@ -105,13 +105,18 @@ public class CacheUtil {
      */
     public <T> T queryWithPassThrough(String localCacheName, String redisKey, TypeReference<T> typeRef,
                                       Supplier<T> dbFallback, Long time, TimeUnit unit) {
-        // 1. 查询 Caffeine 本地缓存
+        // 1. 查询 Caffeine 本地缓存（存储为 JSON 字符串）
         Cache localCache = cacheManager.getCache(localCacheName);
         if (localCache != null) {
-            T localValue = localCache.get(redisKey, (Class<T>) typeRef.getType());
-            if (localValue != null) {
+            String localJson = localCache.get(redisKey, String.class);
+            if (localJson != null) {
+                // 命中空值
+                if ("".equals(localJson)) {
+                    return null;
+                }
+                T value = JSONUtil.toBean(localJson, typeRef.getType(), false);
                 log.debug("Cache hit (Caffeine): key={}", redisKey);
-                return localValue;
+                return value;
             }
         }
 
@@ -125,7 +130,7 @@ public class CacheUtil {
             T value = JSONUtil.toBean(json, typeRef.getType(), false);
             // 回填本地缓存
             if (localCache != null) {
-                localCache.put(redisKey, value);
+                localCache.put(redisKey, json);
             }
             log.debug("Cache hit (Redis): key={}", redisKey);
             return value;
@@ -136,13 +141,17 @@ public class CacheUtil {
 
         // 4. 写入缓存
         if (value != null) {
+            String valueJson = JSONUtil.toJsonStr(value);
             setWithRandomExpire(redisKey, value, time, unit);
             if (localCache != null) {
-                localCache.put(redisKey, value);
+                localCache.put(redisKey, valueJson);
             }
         } else {
             // 防止缓存穿透：写入空值
             stringRedisTemplate.opsForValue().set(redisKey, "", time, unit);
+            if (localCache != null) {
+                localCache.put(redisKey, "");
+            }
         }
 
         return value;
