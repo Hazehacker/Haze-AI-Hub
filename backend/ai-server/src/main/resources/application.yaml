@@ -39,6 +39,16 @@ logging:
     org.springframework.ai.chat.client.advisor: debug
     top.hazenix.hazeaihub: debug
 
+# Actuator metrics
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  metrics:
+    enable:
+      http.server.requests: true
+
 mybatis-plus:
   #mapper配置文件
   mapper-locations: classpath*:mapper/**/*.xml
