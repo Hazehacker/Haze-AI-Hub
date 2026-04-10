@@ -61,7 +61,7 @@ public class ModelServiceImpl implements IModelService {
                 CacheConstants.MODEL_LIST_KEY,
                 new com.fasterxml.jackson.core.type.TypeReference<List<ModelDTO>>() {},
                 this::listModelsFromDB,
-                CacheConstants.BASE_TTL_HOURS,
+                CacheConstants.MODEL_LIST_TTL_HOURS,
                 TimeUnit.HOURS
         );
     }

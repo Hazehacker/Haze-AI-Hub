@@ -36,6 +36,9 @@ public class CacheConstants {
     /** 缓存基础 TTL（小时） */
     public static final long BASE_TTL_HOURS = 1;
 
+    /** 模型列表缓存 TTL（小时）- 模型变动极少，设置更长 */
+    public static final long MODEL_LIST_TTL_HOURS = 24;
+
     /** 随机 TTL 最大偏移量（分钟） */
     public static final long RANDOM_TTL_MAX_MINUTES = 10;
 
