@@ -50,19 +50,22 @@
         </foreach>
     </insert>
 
-    <!-- BM25 全文检索
+    <!-- BM25 全文检索（优先用 search_vector，NULL 时降级走 simple 分词）
          使用 PostgreSQL 全文检索和 ts_rank_cd 进行关键词评分：
-         - to_tsvector('simple', content) 将内容转为 tsvector
-         - plainto_tsquery('simple', #{queryTerms}) 将关键词转为 tsquery
-         - ts_rank_cd 计算 BM25 风格的相关性评分 -->
+         - search_vector：存储时由 zhparser 分词生成的 tsvector
+         - COALESCE(search_vector, to_tsvector('simple', content))：新数据用 zhparser，存量/不可用时降级走 simple -->
     <select id="bm25Search" resultType="java.util.HashMap">
         SELECT id, library_id, media_id, content, chunk_index, metadata, created_at,
-               ts_rank_cd(to_tsvector('simple', content), plainto_tsquery('simple', #{queryTerms})) AS bm25_score
+               ts_rank_cd(
+                   COALESCE(search_vector, to_tsvector('simple', content)),
+                   plainto_tsquery('simple', #{queryTerms})
+               ) AS bm25_score
         FROM kb_chunk
         <where>
             library_id = #{libraryId}
             <if test="queryTerms != null and queryTerms != ''">
-                AND to_tsvector('simple', content) @@ plainto_tsquery('simple', #{queryTerms})
+                AND COALESCE(search_vector, to_tsvector('simple', content))
+                    @@ plainto_tsquery('simple', #{queryTerms})
             </if>
         </where>
         ORDER BY bm25_score DESC
@@ -73,7 +76,7 @@
          核心思路：
          1. hnsw_config CTE：设置 pgvector iterative_scan 参数，保证预过滤场景下的召回率
          2. vector_search CTE：向量相似度检索，按余弦距离排序取 TopK
-         3. fulltext_search CTE：全文检索，按 ts_rank_cd 评分排序取 TopK
+         3. fulltext_search CTE：全文检索，优先用 search_vector（zhparser分词），NULL时降级走 simple 分词
          4. FULL OUTER JOIN 合并两路结果，用 rrf_score() 计算融合分数
          5. 按 RRF 分数降序输出最终 TopK -->
     <select id="hybridSearchRrf" resultType="java.util.HashMap">
@@ -92,11 +95,19 @@
         ),
         fulltext_search AS (
             SELECT id, library_id, media_id, content, chunk_index, metadata, created_at,
-                   ROW_NUMBER() OVER (ORDER BY ts_rank_cd(to_tsvector('simple', content), query) DESC) AS rank,
-                   ts_rank_cd(to_tsvector('simple', content), query) AS bm25_score
+                   ROW_NUMBER() OVER (
+                       ORDER BY ts_rank_cd(
+                           COALESCE(search_vector, to_tsvector('simple', content)),
+                           query
+                       ) DESC
+                   ) AS rank,
+                   ts_rank_cd(
+                       COALESCE(search_vector, to_tsvector('simple', content)),
+                       query
+                   ) AS bm25_score
             FROM kb_chunk, plainto_tsquery('simple', #{queryTerms}) query
             WHERE library_id = #{libraryId}
-              AND to_tsvector('simple', content) @@ query
+              AND COALESCE(search_vector, to_tsvector('simple', content)) @@ query
             ORDER BY bm25_score DESC
             LIMIT #{bm25TopK}
         )

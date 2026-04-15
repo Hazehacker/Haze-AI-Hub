@@ -58,4 +58,8 @@ public class KbChunk {
     @Schema(description = "创建时间")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
+
+    @Schema(description = "中文分词 tsvector（DB自动维护）")
+    @TableField(exist = false)
+    private String searchVector;
 }
