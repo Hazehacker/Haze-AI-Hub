@@ -15,7 +15,7 @@ import top.hazenix.hazeaihub.bo.ParseMessage;
 import top.hazenix.hazeaihub.mapper.KbLibraryMapper;
 import top.hazenix.hazeaihub.mapper.KbMediaMapper;
 import top.hazenix.hazeaihub.service.IAstraMediaService;
-import top.hazenix.hazeaihub.producer.RedissonStreamProducer;
+import top.hazenix.hazeaihub.producer.ParseTaskProducer;
 import top.hazenix.hazeaihub.utils.AliOssUtil;
 import top.hazenix.hazeaihub.utils.Sha256Util;
 import top.hazenix.hazeaihub.vo.MediaResponse;
@@ -36,7 +36,7 @@ public class AstraMediaServiceImpl implements IAstraMediaService {
     private final KbMediaMapper mediaMapper;
     private final KbLibraryMapper libraryMapper;
     private final AliOssUtil aliOssUtil;
-    private final RedissonStreamProducer streamProducer;
+    private final ParseTaskProducer streamProducer;
 
     // 允许的文件类型
     private static final List<String> ALLOWED_MIME_TYPES = List.of(

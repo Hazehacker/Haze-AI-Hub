@@ -108,6 +108,22 @@ astra:
     max-retries: 3
     retry-delay-ms: 5000
     block-timeout-ms: 5000
+  # 消息队列配置: redis | rocketmq (二选一)
+  mq:
+    type: redis  # 默认为 redis，切换为 rocketmq 时使用 RocketMQ
+  rocketmq:
+    enabled: false
+    namesrv-addr: localhost:9876
+    parse-topic: astra-parse-topic
+    dlq-topic: astra-parse-dlq
+    consumer-group: astra-parse-consumer-group
+    producer-group: astra-parse-producer-group
+    max-retries: 3
+    retry-delay-ms: 5000
+    consume-thread-min: 10
+    consume-thread-max: 20
+    batch-size: 10
+    pull-timeout-ms: 3000
   setting:
     language: zh-cn
     enable-swagger-models: true
