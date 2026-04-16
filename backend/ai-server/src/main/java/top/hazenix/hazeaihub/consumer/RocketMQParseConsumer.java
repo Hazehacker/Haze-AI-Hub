@@ -24,8 +24,7 @@ import java.util.List;
 @Component
 @RocketMQMessageListener(
     topic = "astra-parse-topic",
-    consumerGroup = "astra-parse-consumer-group",
-    maxRetryCount = 3  // 最多重试3次，超过后进入死信队列
+    consumerGroup = "astra-parse-consumer-group"
 )
 @RequiredArgsConstructor
 public class RocketMQParseConsumer implements RocketMQListener<ParseMessage> {
