@@ -20,7 +20,10 @@ spring:
       timeout: 60000
     ai:
       vectorstore:
-
+  rocketmq:
+    namesrv-addr: localhost:9876
+    producer:
+      group: astra-parse-producer-group
   datasource:
     url: jdbc:postgresql://${ai.datasource.host:localhost}:${ai.datasource.port:5432}/${ai.datasource.database:haze-ai-hub}?sslmode=disable
     driver-class-name: ${ai.datasource.driver-class-name:org.postgresql.Driver}
@@ -100,30 +103,8 @@ astra:
     model: text-embedding-v3
     dimensions: 1024
     max-tokens: 8192
-  redis-stream:
-    queue-name: astra:parse:queue
-    dlq-name: astra:parse:dlq
-    consumer-group: astra-parse-group
-    consumer-name-prefix: consumer-
-    max-retries: 3
-    retry-delay-ms: 5000
-    block-timeout-ms: 5000
-  # 消息队列配置: redis | rocketmq (二选一)
-  mq:
-    type: redis  # 默认为 redis，切换为 rocketmq 时使用 RocketMQ
   rocketmq:
-    enabled: false
-    namesrv-addr: localhost:9876
-    parse-topic: astra-parse-topic
-    dlq-topic: astra-parse-dlq
-    consumer-group: astra-parse-consumer-group
-    producer-group: astra-parse-producer-group
-    max-retries: 3
-    retry-delay-ms: 5000
-    consume-thread-min: 10
-    consume-thread-max: 20
-    batch-size: 10
-    pull-timeout-ms: 3000
+    namesrv-addr: ${ai.rocketmq.namesrv-addr:localhost:9876}
   setting:
     language: zh-cn
     enable-swagger-models: true
