@@ -108,23 +108,11 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- Redisson for Redis Stream -->
-        <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson-spring-boot-starter</artifactId>
-            <version>3.37.0</version>
-        </dependency>
-
-        <!-- RocketMQ -->
+        <!-- RocketMQ Spring Boot Starter -->
         <dependency>
             <groupId>org.apache.rocketmq</groupId>
-            <artifactId>rocketmq-client</artifactId>
-            <version>5.3.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.rocketmq</groupId>
-            <artifactId>rocketmq-common</artifactId>
-            <version>5.3.2</version>
+            <artifactId>rocketmq-spring-boot-starter</artifactId>
+            <version>2.2.3</version>
         </dependency>
 
         <!-- PDFBox for PDF parsing -->
