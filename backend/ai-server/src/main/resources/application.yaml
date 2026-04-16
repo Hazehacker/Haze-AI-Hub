@@ -21,9 +21,11 @@ spring:
     ai:
       vectorstore:
   rocketmq:
-    namesrv-addr: localhost:9876
+    namesrv-addr: ${ai.rocketmq.namesrv-addr:localhost:9876}
     producer:
       group: astra-parse-producer-group
+    # 自动创建 Topic（需 Broker 开启 autoCreateTopicEnable=true）
+    auto-create-topics: true
   datasource:
     url: jdbc:postgresql://${ai.datasource.host:localhost}:${ai.datasource.port:5432}/${ai.datasource.database:haze-ai-hub}?sslmode=disable
     driver-class-name: ${ai.datasource.driver-class-name:org.postgresql.Driver}
